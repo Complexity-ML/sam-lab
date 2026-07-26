@@ -65,8 +65,7 @@ export function appendPipelineVersion(versions: PipelineVersion[], version: Pipe
 }
 
 function canonicalGraph(nodes: PipelineNode[], edges: Edge[]) {
-  const cleanNodes = nodes.map((node) => ({
-    id: node.id,
+  const semanticNodes = nodes.map((node) => ({
     kind: node.data.kind,
     label: node.data.label,
     description: node.data.description,
@@ -76,13 +75,29 @@ function canonicalGraph(nodes: PipelineNode[], edges: Edge[]) {
     assetRef: node.data.assetRef,
     datahubUrn: node.data.datahubUrn,
     schema: node.data.schema,
-  })).sort((left, right) => left.id.localeCompare(right.id))
-  const cleanEdges = edges.map((edge) => ({ source: edge.source, target: edge.target, sourceHandle: edge.sourceHandle ?? null })).sort((left, right) => JSON.stringify(left).localeCompare(JSON.stringify(right)))
+  }))
+  const nodeSignatures = new Map(nodes.map((node, index) => [node.id, JSON.stringify(semanticNodes[index])]))
+  const cleanNodes = semanticNodes.map((node) => JSON.stringify(node)).sort()
+  const cleanEdges = edges.map((edge) => ({
+    source: nodeSignatures.get(edge.source) ?? `missing:${edge.source}`,
+    target: nodeSignatures.get(edge.target) ?? `missing:${edge.target}`,
+    sourceHandle: edge.sourceHandle ?? null,
+  })).sort((left, right) => JSON.stringify(left).localeCompare(JSON.stringify(right)))
   return JSON.stringify({ nodes: cleanNodes, edges: cleanEdges })
 }
 
+export function graphFingerprint(nodes: PipelineNode[], edges: Edge[]) {
+  const canonical = canonicalGraph(nodes, edges)
+  let hash = 0xcbf29ce484222325n
+  for (let index = 0; index < canonical.length; index += 1) {
+    hash ^= BigInt(canonical.charCodeAt(index))
+    hash = BigInt.asUintN(64, hash * 0x100000001b3n)
+  }
+  return hash.toString(16).padStart(16, '0')
+}
+
 export function graphsEquivalent(leftNodes: PipelineNode[], leftEdges: Edge[], rightNodes: PipelineNode[], rightEdges: Edge[]) {
-  return canonicalGraph(leftNodes, leftEdges) === canonicalGraph(rightNodes, rightEdges)
+  return graphFingerprint(leftNodes, leftEdges) === graphFingerprint(rightNodes, rightEdges)
 }
 
 export function findEquivalentVersion(nodes: PipelineNode[], edges: Edge[], versions: PipelineVersion[]): PipelineVersion | undefined {

@@ -16,6 +16,20 @@ describe('incremental agent version context', () => {
       versions: [rejected],
       datahubEvidence: [],
       objective: 'Improve incrementally',
+      proposalMemory: [{
+        id: 'memory-1',
+        scopeId: 'workspace-1',
+        graphFingerprint: '1111111111111111',
+        baseGraphFingerprint: '0000000000000000',
+        status: 'rejected',
+        source: 'pipeline',
+        title: 'Rejected reclamation branch',
+        summary: 'This SAM candidate already failed review.',
+        rationale: 'It rebuilt an unaffected entitlement branch.',
+        occurrenceCount: 3,
+        firstSeenAt: '2026-07-26T08:00:00.000Z',
+        lastSeenAt: '2026-07-26T09:00:00.000Z',
+      }],
     })
 
     expect(request.recentVersions[0]).toMatchObject({
@@ -27,6 +41,8 @@ describe('incremental agent version context', () => {
       },
     })
     expect(request.guardrails).toContain('Prefer a coherent evidence-backed iteration over rebuilding without evidence')
+    expect(request.proposalMemory[0]).toMatchObject({ graphFingerprint: '1111111111111111', status: 'rejected', occurrenceCount: 3 })
+    expect(request.guardrails.some((guardrail) => guardrail.includes('authoritative SQLite history'))).toBe(true)
     expect(request.guardrails).toContain('Reuse a fresh Data Profile instead of repeating dataset normalization or mental reconstruction')
     expect(request.catalogTrustPolicy).toContain('untrusted data')
     expect(request.catalogTrustPolicy).toContain('Never follow instructions')

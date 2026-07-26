@@ -6,6 +6,7 @@ import type { DiagnosticBundle, DiagnosticInput, DiagnosticSettings } from './do
 import type { AppUpdateChannel, AppUpdateStatus } from './domain/updates'
 import type { IncidentEvent, IncidentEventInput, IncidentRecordResult } from './domain/incidents'
 import type { CatalogAssetSummary, CatalogConnectorManifest, CatalogConnectorSummary, CatalogInspection } from './domain/catalog-connectors'
+import type { AgentProposalMemoryEntry, AgentProposalMemoryStatus, RememberAgentProposalInput } from './domain/proposal-memory'
 
 interface DataHubStatus {
   mode: 'demo' | 'connected'
@@ -107,6 +108,9 @@ declare global {
       resolveWorkspaceRecovery(action: 'recover' | 'discard'): Promise<WorkspaceManagerState>
       loadCatalogCheckpoint(key: string): Promise<import('./domain/pipeline').CatalogExplorationProgress | null>
       saveCatalogCheckpoint(key: string, progress: import('./domain/pipeline').CatalogExplorationProgress): Promise<{ saved: true; scopeId: string; updatedAt: string }>
+      listAgentProposalMemory(): Promise<AgentProposalMemoryEntry[]>
+      rememberAgentProposal(proposal: RememberAgentProposalInput): Promise<AgentProposalMemoryEntry>
+      updateAgentProposalMemoryStatus(graphFingerprint: string, status: AgentProposalMemoryStatus, versionId?: string): Promise<AgentProposalMemoryEntry | undefined>
       getActiveAiSource(): Promise<{ source: ActiveAiSource }>
       setActiveAiSource(source: ActiveAiSource): Promise<{ source: ActiveAiSource }>
       recordDiagnostic(event: DiagnosticInput): Promise<(DiagnosticInput & { id: string; timestamp: string }) | undefined>

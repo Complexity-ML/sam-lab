@@ -2,7 +2,7 @@ import type { Edge } from '@xyflow/react'
 import { useState, type Dispatch, type SetStateAction } from 'react'
 import { connectedLayoutNodeIds, layoutPipeline } from '../domain/layout'
 import { applyProposal, loadPipelinePreset, type AgentProposal, type PipelineNode, type PipelinePresetId } from '../domain/pipeline'
-import { appendPipelineVersion, commitPendingVersion, createPipelineVersion, rejectPendingVersion, restorePipelineVersion, type PipelineVersion } from '../domain/versioning'
+import { appendPipelineVersion, commitPendingVersion, createPipelineVersion, graphFingerprint, rejectPendingVersion, restorePipelineVersion, type PipelineVersion } from '../domain/versioning'
 import { atomicTransactionBlockers, validatePipeline } from '../validation'
 import { recordDiagnostic } from '../domain/diagnostics'
 import { notifyToast } from '../domain/toasts'
@@ -127,19 +127,25 @@ export function usePipelineVersions({ edges, nodes, proposal, resolveApprovedExe
   }
 
   const rejectProposal = () => {
+    const rejectedPreview = proposal ? applyProposal(nodes, edges, proposal) : undefined
+    const rejectedFingerprint = rejectedPreview ? graphFingerprint(rejectedPreview.nodes, rejectedPreview.edges) : undefined
     if (pendingVersionId) setVersions((current) => rejectPendingVersion(current, pendingVersionId))
     if (resolveRejectedExecution) setNodes((current) => resolveRejectedExecution(current, edges))
     setPendingVersionId(undefined)
     setProposal(undefined)
     setActivity('Agent proposal rejected · revision marked rejected · active branch unchanged')
+    if (rejectedFingerprint && window.dataLab) void window.dataLab.updateAgentProposalMemoryStatus(rejectedFingerprint, 'rejected', pendingVersionId).catch(() => undefined)
     recordDiagnostic({ category: 'revision', action: 'proposal.reject', status: 'info', detail: { versionId: pendingVersionId } })
   }
 
   const discardInvalidProposal = (blockerIds: string[]) => {
+    const invalidPreview = proposal ? applyProposal(nodes, edges, proposal) : undefined
+    const invalidFingerprint = invalidPreview ? graphFingerprint(invalidPreview.nodes, invalidPreview.edges) : undefined
     if (pendingVersionId) setVersions((current) => rejectPendingVersion(current, pendingVersionId))
     setPendingVersionId(undefined)
     setProposal(undefined)
     setActivity(`Human intent approved · invalid transaction discarded · agent repairing ${blockerIds.length} atomic blocker${blockerIds.length === 1 ? '' : 's'}`)
+    if (invalidFingerprint && window.dataLab) void window.dataLab.updateAgentProposalMemoryStatus(invalidFingerprint, 'invalid', pendingVersionId).catch(() => undefined)
     recordDiagnostic({ category: 'revision', action: 'proposal.atomic-repair', status: 'warning', detail: { versionId: pendingVersionId, blockerIds } })
   }
 
@@ -164,6 +170,7 @@ export function usePipelineVersions({ edges, nodes, proposal, resolveApprovedExe
     setActivity(readinessErrors > 0
       ? `Human Review approved · ${version.label} committed · ${readinessErrors} pipeline readiness check${readinessErrors === 1 ? '' : 's'} remain`
       : `Human Review approved · ${version.label} committed atomically`)
+    if (window.dataLab) void window.dataLab.updateAgentProposalMemoryStatus(graphFingerprint(version.nodes, version.edges), 'committed', versionId).catch(() => undefined)
     return true
   }
 
@@ -174,6 +181,7 @@ export function usePipelineVersions({ edges, nodes, proposal, resolveApprovedExe
     if (resolveRejectedExecution) setNodes((current) => resolveRejectedExecution(current, edges))
     if (pendingVersionId === versionId) { setPendingVersionId(undefined); setProposal(undefined) }
     setActivity(`Human Review rejected · ${version.label} remains visible in history · active graph unchanged`)
+    if (window.dataLab) void window.dataLab.updateAgentProposalMemoryStatus(graphFingerprint(version.nodes, version.edges), 'rejected', versionId).catch(() => undefined)
     return true
   }
 

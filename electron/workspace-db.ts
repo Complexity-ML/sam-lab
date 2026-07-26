@@ -66,6 +66,25 @@ export interface IncidentEvent extends IncidentEventInput {
   createdAt: string
 }
 
+export type AgentProposalMemoryStatus = 'generated' | 'pending-review' | 'committed' | 'rejected' | 'invalid' | 'duplicate'
+
+export interface AgentProposalMemoryEntry {
+  id: string
+  scopeId: string
+  graphFingerprint: string
+  baseGraphFingerprint: string
+  status: AgentProposalMemoryStatus
+  source: 'pipeline' | 'card-rework'
+  title: string
+  summary: string
+  rationale: string
+  occurrenceCount: number
+  firstSeenAt: string
+  lastSeenAt: string
+  decidedAt?: string
+  versionId?: string
+}
+
 type IncidentRow = {
   id: string
   workspace_id: string | null
@@ -81,6 +100,23 @@ type IncidentRow = {
   branch_id: string | null
   version_id: string | null
   created_at: string
+}
+
+type AgentProposalMemoryRow = {
+  id: string
+  workspace_id: string | null
+  graph_fingerprint: string
+  base_graph_fingerprint: string
+  status: AgentProposalMemoryStatus
+  source: AgentProposalMemoryEntry['source']
+  title: string
+  summary: string
+  rationale: string
+  occurrence_count: number
+  first_seen_at: string
+  last_seen_at: string
+  decided_at: string | null
+  version_id: string | null
 }
 
 function parsePayload(serialized: unknown): unknown | null {
@@ -185,6 +221,29 @@ function db(userDataDirectory: string) {
       updated_at TEXT NOT NULL,
       PRIMARY KEY (scope_id, checkpoint_key)
     );
+    CREATE TABLE IF NOT EXISTS agent_proposal_memory (
+      id TEXT PRIMARY KEY,
+      workspace_id TEXT,
+      graph_fingerprint TEXT NOT NULL,
+      base_graph_fingerprint TEXT NOT NULL,
+      status TEXT NOT NULL CHECK (status IN ('generated', 'pending-review', 'committed', 'rejected', 'invalid', 'duplicate')),
+      source TEXT NOT NULL CHECK (source IN ('pipeline', 'card-rework')),
+      title TEXT NOT NULL,
+      summary TEXT NOT NULL,
+      rationale TEXT NOT NULL,
+      occurrence_count INTEGER NOT NULL DEFAULT 1 CHECK (occurrence_count >= 1),
+      first_seen_at TEXT NOT NULL,
+      last_seen_at TEXT NOT NULL,
+      decided_at TEXT,
+      version_id TEXT,
+      FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE
+    );
+    CREATE UNIQUE INDEX IF NOT EXISTS agent_proposal_memory_workspace_graph_idx
+      ON agent_proposal_memory (workspace_id, graph_fingerprint) WHERE workspace_id IS NOT NULL;
+    CREATE UNIQUE INDEX IF NOT EXISTS agent_proposal_memory_workbench_graph_idx
+      ON agent_proposal_memory (graph_fingerprint) WHERE workspace_id IS NULL;
+    CREATE INDEX IF NOT EXISTS agent_proposal_memory_workspace_time_idx
+      ON agent_proposal_memory (workspace_id, last_seen_at DESC);
   `)
   const incidentColumns = database.prepare('PRAGMA table_info(incident_events)').all() as unknown as { name: string }[]
   if (!incidentColumns.some((column) => column.name === 'fingerprint')) database.exec('ALTER TABLE incident_events ADD COLUMN fingerprint TEXT')
@@ -256,6 +315,10 @@ export function beginWorkspaceSession(userDataDirectory: string) {
   const target = db(userDataDirectory)
   const previous = readSetting(target, CLEAN_SHUTDOWN_KEY)
   const uncleanShutdown = previous === 'false'
+  if (!activeWorkspaceId(target)) {
+    target.prepare("DELETE FROM catalog_checkpoints WHERE scope_id = 'workbench'").run()
+    target.prepare('DELETE FROM agent_proposal_memory WHERE workspace_id IS NULL').run()
+  }
   writeSetting(target, CLEAN_SHUTDOWN_KEY, 'false')
   return uncleanShutdown
 }
@@ -283,6 +346,7 @@ export function createWorkspace(userDataDirectory: string, name: unknown, payloa
   const serialized = serializePayload(payload)
   const normalizedName = normalizeWorkspaceName(name)
   const target = db(userDataDirectory)
+  const previousWorkspaceId = activeWorkspaceId(target)
   promoteActiveWorkspaceDraft(target)
   const id = `workspace-${randomUUID()}`
   const timestamp = new Date().toISOString()
@@ -290,6 +354,7 @@ export function createWorkspace(userDataDirectory: string, name: unknown, payloa
     INSERT INTO workspaces (id, name, payload, archived, dirty, created_at, updated_at)
     VALUES (?, ?, ?, 0, 0, ?, ?)
   `).run(id, normalizedName, serialized, timestamp, timestamp)
+  if (!previousWorkspaceId) target.prepare('UPDATE agent_proposal_memory SET workspace_id = ? WHERE workspace_id IS NULL').run(id)
   writeSetting(target, ACTIVE_WORKSPACE_KEY, id)
   return currentState(target, false)
 }
@@ -335,6 +400,7 @@ export function deleteWorkspace(userDataDirectory: string, workspaceId: unknown)
   try {
     target.prepare('DELETE FROM incident_events WHERE workspace_id = ?').run(workspaceId)
     target.prepare('DELETE FROM catalog_checkpoints WHERE scope_id = ?').run(workspaceId)
+    target.prepare('DELETE FROM agent_proposal_memory WHERE workspace_id = ?').run(workspaceId)
     target.prepare('DELETE FROM workspaces WHERE id = ?').run(workspaceId)
     target.exec('COMMIT')
   } catch (error) {
@@ -565,6 +631,121 @@ export function recordIncidentEvent(userDataDirectory: string, payload: unknown)
   `).run(event.id, event.workspaceId ?? null, event.incidentKey, event.transition, event.severity, event.title, event.detail, event.sourceSystem ?? null, event.sourceRef ?? null, event.fingerprint ?? null, event.cardId ?? null, event.branchId ?? null, event.versionId ?? null, event.createdAt)
   target.prepare("DELETE FROM incident_events WHERE julianday(created_at) < julianday('now', '-30 days')").run()
   return { recorded: true, event }
+}
+
+function normalizeGraphFingerprint(value: unknown, label: string) {
+  if (typeof value !== 'string' || !/^[a-f0-9]{16,128}$/.test(value)) throw new Error(`Invalid ${label}`)
+  return value
+}
+
+function proposalMemoryFromRow(row: AgentProposalMemoryRow): AgentProposalMemoryEntry {
+  return {
+    id: row.id,
+    scopeId: row.workspace_id ?? 'workbench',
+    graphFingerprint: row.graph_fingerprint,
+    baseGraphFingerprint: row.base_graph_fingerprint,
+    status: row.status,
+    source: row.source,
+    title: row.title,
+    summary: row.summary,
+    rationale: row.rationale,
+    occurrenceCount: Number(row.occurrence_count),
+    firstSeenAt: row.first_seen_at,
+    lastSeenAt: row.last_seen_at,
+    decidedAt: row.decided_at ?? undefined,
+    versionId: row.version_id ?? undefined,
+  }
+}
+
+function proposalMemoryRow(target: DatabaseSync, workspaceId: string | null, graphFingerprint: string) {
+  const row = workspaceId
+    ? target.prepare('SELECT * FROM agent_proposal_memory WHERE workspace_id = ? AND graph_fingerprint = ?').get(workspaceId, graphFingerprint)
+    : target.prepare('SELECT * FROM agent_proposal_memory WHERE workspace_id IS NULL AND graph_fingerprint = ?').get(graphFingerprint)
+  return row as AgentProposalMemoryRow | undefined
+}
+
+export function rememberAgentProposal(userDataDirectory: string, payload: unknown): AgentProposalMemoryEntry {
+  if (!payload || typeof payload !== 'object') throw new Error('Invalid agent proposal memory')
+  const value = payload as Record<string, unknown>
+  const graphFingerprint = normalizeGraphFingerprint(value.graphFingerprint, 'proposal graph fingerprint')
+  const baseGraphFingerprint = normalizeGraphFingerprint(value.baseGraphFingerprint, 'base graph fingerprint')
+  if (value.source !== 'pipeline' && value.source !== 'card-rework') throw new Error('Invalid proposal source')
+  const title = boundedIncidentText(value.title, 'Proposal title', 180)
+  const summary = boundedIncidentText(value.summary, 'Proposal summary', 1_000)
+  const rationale = boundedIncidentText(value.rationale, 'Proposal rationale', 1_500)
+  const target = db(userDataDirectory)
+  const workspaceId = activeWorkspaceId(target)
+  const timestamp = new Date().toISOString()
+  target.prepare(`
+    INSERT INTO agent_proposal_memory (
+      id, workspace_id, graph_fingerprint, base_graph_fingerprint, status, source,
+      title, summary, rationale, occurrence_count, first_seen_at, last_seen_at
+    )
+    VALUES (?, ?, ?, ?, 'generated', ?, ?, ?, ?, 1, ?, ?)
+    ON CONFLICT DO UPDATE SET
+      base_graph_fingerprint = excluded.base_graph_fingerprint,
+      source = excluded.source,
+      title = excluded.title,
+      summary = excluded.summary,
+      rationale = excluded.rationale,
+      occurrence_count = agent_proposal_memory.occurrence_count + 1,
+      last_seen_at = excluded.last_seen_at
+  `).run(
+    `proposal-memory-${randomUUID()}`,
+    workspaceId,
+    graphFingerprint,
+    baseGraphFingerprint,
+    value.source,
+    title,
+    summary,
+    rationale,
+    timestamp,
+    timestamp,
+  )
+  const row = proposalMemoryRow(target, workspaceId, graphFingerprint)
+  if (!row) throw new Error('Agent proposal memory was not persisted')
+  return proposalMemoryFromRow(row)
+}
+
+export function listAgentProposalMemory(userDataDirectory: string, limit = 40): AgentProposalMemoryEntry[] {
+  const target = db(userDataDirectory)
+  const workspaceId = activeWorkspaceId(target)
+  const boundedLimit = Math.max(1, Math.min(100, Math.round(limit)))
+  const rows = workspaceId
+    ? target.prepare('SELECT * FROM agent_proposal_memory WHERE workspace_id = ? ORDER BY last_seen_at DESC, rowid DESC LIMIT ?').all(workspaceId, boundedLimit)
+    : target.prepare('SELECT * FROM agent_proposal_memory WHERE workspace_id IS NULL ORDER BY last_seen_at DESC, rowid DESC LIMIT ?').all(boundedLimit)
+  return (rows as unknown as AgentProposalMemoryRow[]).map(proposalMemoryFromRow)
+}
+
+export function updateAgentProposalMemoryStatus(
+  userDataDirectory: string,
+  graphFingerprintValue: unknown,
+  statusValue: unknown,
+  versionIdValue?: unknown,
+): AgentProposalMemoryEntry | undefined {
+  const graphFingerprint = normalizeGraphFingerprint(graphFingerprintValue, 'proposal graph fingerprint')
+  const statuses = new Set<AgentProposalMemoryStatus>(['generated', 'pending-review', 'committed', 'rejected', 'invalid', 'duplicate'])
+  if (typeof statusValue !== 'string' || !statuses.has(statusValue as AgentProposalMemoryStatus)) throw new Error('Invalid proposal memory status')
+  const status = statusValue as AgentProposalMemoryStatus
+  const versionId = typeof versionIdValue === 'string' && versionIdValue.trim() ? versionIdValue.trim().slice(0, 180) : null
+  const decidedAt = status === 'generated' || status === 'pending-review' ? null : new Date().toISOString()
+  const target = db(userDataDirectory)
+  const workspaceId = activeWorkspaceId(target)
+  const result = workspaceId
+    ? target.prepare(`
+        UPDATE agent_proposal_memory
+        SET status = ?, version_id = COALESCE(?, version_id), decided_at = ?
+        WHERE workspace_id = ? AND graph_fingerprint = ?
+      `).run(status, versionId, decidedAt, workspaceId, graphFingerprint)
+    : target.prepare(`
+        UPDATE agent_proposal_memory
+        SET status = ?, version_id = COALESCE(?, version_id), decided_at = ?
+        WHERE workspace_id IS NULL AND graph_fingerprint = ?
+      `).run(status, versionId, decidedAt, graphFingerprint)
+  if (Number(result.changes) !== 1) return undefined
+  const row = proposalMemoryRow(target, workspaceId, graphFingerprint)
+  if (!row) return undefined
+  return proposalMemoryFromRow(row)
 }
 
 export function closeWorkspaceDatabase() { database?.close(); database = undefined }

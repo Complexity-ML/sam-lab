@@ -15,6 +15,7 @@ import {
   duplicateWorkspace,
   listWorkspaces,
   listIncidentEvents,
+  listAgentProposalMemory,
   loadAppSetting,
   loadCatalogCheckpoint,
   loadSavedWorkspace,
@@ -22,11 +23,13 @@ import {
   markWorkspaceSessionClean,
   openWorkspace,
   recordIncidentEvent,
+  rememberAgentProposal,
   renameWorkspace,
   resolveWorkspaceRecovery,
   saveAppSetting,
   saveCatalogCheckpoint,
   saveWorkspace,
+  updateAgentProposalMemoryStatus,
 } from './workspace-db.js'
 
 let testDirectory: string | undefined
@@ -76,7 +79,7 @@ describe('SQLite workspace persistence', () => {
     expect(clearIncidentEvents(target)).toEqual({ deleted: 0, workspaceId: undefined })
   })
 
-  it('persists catalog coverage for the unsaved workbench without saving its graph', () => {
+  it('keeps workbench catalog coverage only for the current unsaved session', () => {
     const target = directory('catalog-checkpoint')
     const progress = { inspected: 8, total: 67, datasets: [{ urn: 'urn:li:dataset:test-1' }] }
 
@@ -86,6 +89,62 @@ describe('SQLite workspace persistence', () => {
 
     closeWorkspaceDatabase()
     expect(loadCatalogCheckpoint(target, 'catalog:deadbeef')).toEqual(progress)
+    beginWorkspaceSession(target)
+    expect(loadCatalogCheckpoint(target, 'catalog:deadbeef')).toBeNull()
+  })
+
+  it('stores proposal memory relationally, increments duplicates, and purges an unsaved workbench next session', () => {
+    const target = directory('proposal-memory-workbench')
+    const proposal = {
+      graphFingerprint: '1111111111111111',
+      baseGraphFingerprint: '0000000000000000',
+      source: 'pipeline' as const,
+      title: 'Optimize unused licenses',
+      summary: 'Add a reviewed reclamation branch.',
+      rationale: 'Fresh SAM evidence reports inactive assigned seats.',
+    }
+
+    expect(rememberAgentProposal(target, proposal)).toMatchObject({ occurrenceCount: 1, scopeId: 'workbench', status: 'generated' })
+    expect(rememberAgentProposal(target, proposal)).toMatchObject({ occurrenceCount: 2, scopeId: 'workbench' })
+    expect(updateAgentProposalMemoryStatus(target, proposal.graphFingerprint, 'rejected')).toMatchObject({ status: 'rejected', occurrenceCount: 2 })
+    expect(listAgentProposalMemory(target)).toHaveLength(1)
+
+    closeWorkspaceDatabase()
+    const sqlite = new DatabaseSync(join(target, 'sam-lab.sqlite'))
+    const columns = sqlite.prepare('PRAGMA table_info(agent_proposal_memory)').all() as unknown as { name: string }[]
+    expect(columns.map((column) => column.name)).not.toContain('payload')
+    expect(columns.map((column) => column.name)).not.toContain('proposal_json')
+    sqlite.close()
+
+    beginWorkspaceSession(target)
+    expect(listAgentProposalMemory(target)).toEqual([])
+  })
+
+  it('treats a missing proposal-memory row as a legacy-compatible no-op', () => {
+    const target = directory('proposal-memory-missing')
+
+    expect(updateAgentProposalMemoryStatus(target, '2222222222222222', 'committed', 'legacy-version')).toBeUndefined()
+    expect(listAgentProposalMemory(target)).toEqual([])
+  })
+
+  it('moves current workbench proposal memory into a workspace and isolates later workspaces', () => {
+    const target = directory('proposal-memory-workspaces')
+    const proposal = {
+      graphFingerprint: '2222222222222222',
+      baseGraphFingerprint: '0000000000000000',
+      source: 'card-rework' as const,
+      title: 'Match entitlements',
+      summary: 'Add bounded license matching.',
+      rationale: 'The source has no reusable entitlement comparison.',
+    }
+    rememberAgentProposal(target, proposal)
+    const first = createWorkspace(target, 'License review', { projectTitle: 'License review' })
+    expect(listAgentProposalMemory(target)).toMatchObject([{ scopeId: first.activeWorkspaceId, title: proposal.title }])
+
+    createWorkspace(target, 'Renewals', { projectTitle: 'Renewals' })
+    expect(listAgentProposalMemory(target)).toEqual([])
+    openWorkspace(target, first.activeWorkspaceId!)
+    expect(listAgentProposalMemory(target)).toHaveLength(1)
   })
 
   it('isolates catalog checkpoints by active workspace', () => {

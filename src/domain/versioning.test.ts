@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { customerActivationEdges as initialEdges, customerActivationNodes as initialNodes } from './pipeline'
-import { appendPipelineVersion, buildVersionProvenanceExport, commitPendingVersion, createPipelineVersion, findEquivalentVersion, graphsEquivalent, readPipelineVersions, rejectPendingVersion, resolveVersionSelection, restorePipelineVersion } from './versioning'
+import { appendPipelineVersion, buildVersionProvenanceExport, commitPendingVersion, createPipelineVersion, findEquivalentVersion, graphFingerprint, graphsEquivalent, readPipelineVersions, rejectPendingVersion, resolveVersionSelection, restorePipelineVersion } from './versioning'
 
 describe('pipeline versioning', () => {
   it('creates an isolated graph snapshot', () => {
@@ -60,5 +60,20 @@ describe('pipeline versioning', () => {
     const moved = initialNodes.map((node, index) => ({ ...node, position: { x: index * 99, y: index * 12 }, data: { ...node.data, runState: 'completed' as const } }))
     expect(graphsEquivalent(moved, initialEdges, version.nodes, version.edges)).toBe(true)
     expect(findEquivalentVersion(moved, initialEdges, [version])?.id).toBe(version.id)
+    expect(graphFingerprint(moved, initialEdges)).toBe(graphFingerprint(initialNodes, initialEdges))
+  })
+
+  it('fingerprints the same semantic graph when a provider regenerates technical card IDs', () => {
+    const renamed = new Map(initialNodes.map((node, index) => [node.id, `regenerated-${index}`]))
+    const regeneratedNodes = initialNodes.map((node) => ({ ...node, id: renamed.get(node.id)! }))
+    const regeneratedEdges = initialEdges.map((edge, index) => ({
+      ...edge,
+      id: `regenerated-edge-${index}`,
+      source: renamed.get(edge.source)!,
+      target: renamed.get(edge.target)!,
+    }))
+
+    expect(graphFingerprint(regeneratedNodes, regeneratedEdges)).toBe(graphFingerprint(initialNodes, initialEdges))
+    expect(graphsEquivalent(regeneratedNodes, regeneratedEdges, initialNodes, initialEdges)).toBe(true)
   })
 })

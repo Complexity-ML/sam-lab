@@ -5,7 +5,7 @@ import { getDataHubStatus, loadDatasetContext } from './datahub.js'
 import { auditDataHubWithMcp, closeDataHubMcp, connectDataHubMcp, getDataHubMcpConfigurationStatus, inspectDataHubAsset, invalidateDataHubContext, parseDataHubDecisionRequest, saveDataHubMcpSettings, searchDataHubAssets, writeDataHubDecision } from './datahub-mcp.js'
 import { cancelAiProposal, getAiStatus, refreshAiModelCatalog, runAiProposal, saveAiSettings, testAiConnection } from './ai-provider.js'
 import { ChatGPTAgentSession } from './chatgpt-session.js'
-import { archiveWorkspace, autosaveWorkspaceDraft, beginWorkspaceSession, clearIncidentEvents, closeWorkspaceDatabase, commitActiveWorkspace, createWorkspace, deleteWorkspace, duplicateWorkspace, listIncidentEvents, loadAppSetting, loadCatalogCheckpoint, loadWorkspaceManagerState, markWorkspaceSessionClean, openWorkspace, recordIncidentEvent, renameWorkspace, resolveWorkspaceRecovery, saveAppSetting, saveCatalogCheckpoint } from './workspace-db.js'
+import { archiveWorkspace, autosaveWorkspaceDraft, beginWorkspaceSession, clearIncidentEvents, closeWorkspaceDatabase, commitActiveWorkspace, createWorkspace, deleteWorkspace, duplicateWorkspace, listAgentProposalMemory, listIncidentEvents, loadAppSetting, loadCatalogCheckpoint, loadWorkspaceManagerState, markWorkspaceSessionClean, openWorkspace, recordIncidentEvent, rememberAgentProposal, renameWorkspace, resolveWorkspaceRecovery, saveAppSetting, saveCatalogCheckpoint, updateAgentProposalMemoryStatus } from './workspace-db.js'
 import { parseActiveAiSource, requireSelectableAiSource, type ActiveAiSource } from './active-ai-source.js'
 import { reserveHumanReviewNotification } from './human-review-notifications.js'
 import { ensureDiagnosticLog, exportDiagnosticBundle, loadDiagnosticSettings, recordDiagnosticEvent, saveDiagnosticSettings } from './diagnostics.js'
@@ -61,6 +61,9 @@ const workspaceCommitChannel = 'sam-lab:workspace-commit'
 const workspaceRecoveryChannel = 'sam-lab:workspace-recovery'
 const catalogCheckpointLoadChannel = 'sam-lab:catalog-checkpoint-load'
 const catalogCheckpointSaveChannel = 'sam-lab:catalog-checkpoint-save'
+const proposalMemoryListChannel = 'sam-lab:proposal-memory-list'
+const proposalMemoryRememberChannel = 'sam-lab:proposal-memory-remember'
+const proposalMemoryStatusChannel = 'sam-lab:proposal-memory-status'
 const activeAiSourceChannel = 'sam-lab:active-ai-source'
 const activeAiSourceSaveChannel = 'sam-lab:active-ai-source-save'
 const diagnosticsRecordChannel = 'sam-lab:diagnostics-record'
@@ -310,6 +313,11 @@ app.whenReady().then(() => {
   ipcMain.handle(workspaceCommitChannel, (_event, payload: unknown) => commitActiveWorkspace(app.getPath('userData'), payload))
   ipcMain.handle(catalogCheckpointLoadChannel, (_event, payload: { key?: unknown }) => loadCatalogCheckpoint(app.getPath('userData'), payload?.key))
   ipcMain.handle(catalogCheckpointSaveChannel, (_event, payload: { key?: unknown; progress?: unknown }) => saveCatalogCheckpoint(app.getPath('userData'), payload?.key, payload?.progress))
+  ipcMain.handle(proposalMemoryListChannel, () => listAgentProposalMemory(app.getPath('userData')))
+  ipcMain.handle(proposalMemoryRememberChannel, (_event, payload: unknown) => rememberAgentProposal(app.getPath('userData'), payload))
+  ipcMain.handle(proposalMemoryStatusChannel, (_event, payload: { graphFingerprint?: unknown; status?: unknown; versionId?: unknown }) => (
+    updateAgentProposalMemoryStatus(app.getPath('userData'), payload?.graphFingerprint, payload?.status, payload?.versionId)
+  ))
   ipcMain.handle(workspaceRecoveryChannel, (_event, payload: { action?: unknown }) => {
     const state = resolveWorkspaceRecovery(app.getPath('userData'), payload?.action)
     workspaceSessionWasUnclean = false

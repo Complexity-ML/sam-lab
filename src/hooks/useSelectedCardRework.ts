@@ -7,7 +7,7 @@ import { applyAtomicRunState, buildAtomicRunTrace, executePipelineAtomically, ty
 import type { DataHubEvidence } from '../domain/datahub'
 import { applyProposal, type AgentProposal, type PipelineNode } from '../domain/pipeline'
 import { errorMessage, notifyError } from '../domain/toasts'
-import { findEquivalentVersion, graphsEquivalent, type PipelineVersion } from '../domain/versioning'
+import { findEquivalentVersion, graphFingerprint, graphsEquivalent, type PipelineVersion } from '../domain/versioning'
 import { repairMonitorWorkBranches, repairSensitiveOutputPaths } from '../validation/proposal-repair'
 import type { ValidationIssue } from '../validation/types'
 import { disconnectedAiStatus, disconnectedChatGPTStatus } from './useAiConnections'
@@ -72,6 +72,7 @@ export function useSelectedCardRework(options: {
         issues: options.issues,
         nodes: options.nodes,
         objective,
+        proposalMemory: await window.dataLab.listAgentProposalMemory(),
         responseLanguage: options.language === 'fr' ? 'French' : 'English',
         versions: options.versions,
       })
@@ -82,8 +83,22 @@ export function useSelectedCardRework(options: {
       repairMonitorWorkBranches(nextProposal, options.nodes, options.edges)
       nextProposal.runTrace = buildAtomicRunTrace(options.nodes, atomicRun)
       const preview = applyProposal(options.nodes, options.edges, nextProposal)
+      const proposalGraphFingerprint = graphFingerprint(preview.nodes, preview.edges)
+      const rememberedProposal = await window.dataLab.rememberAgentProposal({
+        graphFingerprint: proposalGraphFingerprint,
+        baseGraphFingerprint: graphFingerprint(options.nodes, options.edges),
+        source: 'card-rework',
+        title: nextProposal.title,
+        summary: nextProposal.summary,
+        rationale: nextProposal.rationale,
+      })
+      if (rememberedProposal.occurrenceCount > 1) {
+        options.setActivity(`Repeated card graph blocked by SQLite memory · "${rememberedProposal.title}" was already attempted ${rememberedProposal.occurrenceCount - 1} time${rememberedProposal.occurrenceCount === 2 ? '' : 's'} · no revision created`)
+        return
+      }
       const equivalentVersion = findEquivalentVersion(preview.nodes, preview.edges, options.versions)
       if (graphsEquivalent(options.nodes, options.edges, preview.nodes, preview.edges) || equivalentVersion) {
+        await window.dataLab.updateAgentProposalMemoryStatus(proposalGraphFingerprint, 'duplicate', equivalentVersion?.id).catch(() => undefined)
         options.setActivity(`Card proposal blocked as equivalent to ${equivalentVersion ? `${equivalentVersion.label} (${equivalentVersion.status ?? 'committed'})` : 'the current graph'} · no revision created`)
         return
       }
@@ -92,6 +107,7 @@ export function useSelectedCardRework(options: {
       options.setProposal(nextProposal)
       options.setProposalReviewOpen(true)
       const reviewVersionId = options.recordPendingReview(nextProposal)
+      await window.dataLab.updateAgentProposalMemoryStatus(proposalGraphFingerprint, 'pending-review', reviewVersionId).catch(() => undefined)
       options.setActivity(`${response.model} proposed a card-level diff${nextProposal.requiresHumanReview ? ' · human review required' : ' · agent is confident'}`)
       if (nextProposal.requiresHumanReview) void window.dataLab.notifyHumanReview({ cardLabel: selected.data.label, reason: nextProposal.summary, versionId: reviewVersionId })
     } catch (error) {
