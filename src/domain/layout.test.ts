@@ -85,7 +85,7 @@ describe('pipeline XY layout', () => {
     expect(route.path.match(/ C /g)).toHaveLength(1)
   })
 
-  it('keeps a compact elastic cable when vertically separated endpoint handles share the same X', () => {
+  it('routes vertically aligned handles outside both card bodies', () => {
     const route = routeElasticCable({
       sourceId: 'source',
       sourceX: 503,
@@ -99,11 +99,32 @@ describe('pipeline XY layout', () => {
       ],
     })
 
-    expect(route.routedAroundObstacle).toBe(false)
+    expect(route.routedAroundObstacle).toBe(true)
     expect(route.labelX).toBe(503)
+    expect(route.labelY).toBeGreaterThan(791)
     expect(route.path).toMatch(/^M 503 633 /)
     expect(route.path).toMatch(/L 503 311$/)
-    expect(route.path.match(/ C /g)).toHaveLength(1)
+    expect(route.path.match(/ C /g)).toHaveLength(2)
+  })
+
+  it('routes a target moved behind its source without crossing the cable turns', () => {
+    const route = routeElasticCable({
+      sourceId: 'output',
+      sourceX: 1_100,
+      sourceY: 420,
+      targetId: 'monitor',
+      targetX: 360,
+      targetY: 620,
+      obstacles: [
+        { id: 'output', x: 868, y: 300, width: 232, height: 240 },
+        { id: 'monitor', x: 360, y: 500, width: 232, height: 240 },
+      ],
+    })
+
+    expect(route.routedAroundObstacle).toBe(true)
+    expect(route.path).toMatch(/^M 1100 420 L 1118 420/)
+    expect(route.path).toMatch(/342 620 L 360 620$/)
+    expect(route.path.match(/ C /g)).toHaveLength(2)
   })
 
   it('routes feedback below the tallest card in the iteration', () => {
