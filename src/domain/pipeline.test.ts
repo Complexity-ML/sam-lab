@@ -89,6 +89,25 @@ describe('pipeline validation', () => {
     expect(pruneOrphanedCards([committed, draft], []).map((node) => node.id)).toEqual(['committed-orphan', 'manual-draft'])
   })
 
+  it('does not silently remove a newly bound Source before a later iteration connects it', () => {
+    const source = { ...newCard('source', 0), id: 'license-source' }
+    const profile = { ...newCard('profile', 1), id: 'license-profile' }
+    const next = applyProposal([], [], {
+      id: 'bind-source',
+      title: 'Bind license source',
+      summary: 'Preserve bounded evidence.',
+      rationale: 'The next iteration will connect and analyze it.',
+      addedNodes: [source, profile],
+      updatedNodes: [],
+      addedEdges: [],
+      removedEdgeIds: [],
+      datahubReads: [],
+      writeback: 'none',
+    })
+
+    expect(next.nodes.map((node) => node.id)).toEqual(['license-source', 'license-profile'])
+  })
+
   it('removes a stale profile reconstructed under a connected card and every dangling edge', () => {
     const source = { ...newCard('source', 0), id: 'source' }
     const profile = { ...newCard('profile', 1), id: 'profile' }

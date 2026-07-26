@@ -380,7 +380,7 @@ export function applyProposal(nodes: PipelineNode[], edges: Edge[], proposal: Ag
 }
 
 const hostStarterKinds = new Set<CardKind>(['control', 'explorer', 'worker'])
-const floatingSidecarKinds = new Set<CardKind>(['profile'])
+const floatingEvidenceKinds = new Set<CardKind>(['source', 'profile'])
 
 function orphanIdentity(node: PipelineNode) {
   // DataHub URNs and provider labels are not consistently cased. Treat a
@@ -391,9 +391,10 @@ function orphanIdentity(node: PipelineNode) {
 }
 
 /**
- * Host starters and compact profile memories may float. A disconnected
- * sidecar becomes reconstruction debris when it duplicates a connected card
- * identity or occupies the same canvas slot as one.
+ * Host starters and bounded Source/Profile evidence may float between
+ * incremental iterations. A disconnected evidence card becomes
+ * reconstruction debris only when it duplicates a connected card identity or
+ * occupies the same canvas slot as one.
  */
 export function pruneOrphanedCards(nodes: PipelineNode[], edges: Edge[], strictNodeIds: Iterable<string> = []): PipelineNode[] {
   const nodeIds = new Set(nodes.map((node) => node.id))
@@ -415,8 +416,8 @@ export function pruneOrphanedCards(nodes: PipelineNode[], edges: Edge[], strictN
     // Persisted repair diffs can retain an older profile at the exact XY slot
     // later assigned to its replacement. Although hidden under the visible
     // card, React Flow still routes elastic edges around that stale obstacle.
-    if (floatingSidecarKinds.has(node.data.kind) && overlapsConnectedCard(node)) return false
-    if (floatingSidecarKinds.has(node.data.kind)) return true
+    if (floatingEvidenceKinds.has(node.data.kind) && overlapsConnectedCard(node)) return false
+    if (floatingEvidenceKinds.has(node.data.kind)) return true
     // Every card created by the current transaction must join a branch.
     if (strict.has(node.id)) return false
     return true

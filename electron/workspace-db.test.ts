@@ -1,6 +1,6 @@
 import { DatabaseSync } from 'node:sqlite'
 import { afterEach, describe, expect, it } from 'vitest'
-import { mkdtempSync, rmSync } from 'node:fs'
+import { existsSync, mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import {
@@ -155,8 +155,99 @@ describe('SQLite workspace persistence', () => {
     closeWorkspaceDatabase()
     const sqlite = new DatabaseSync(join(target, 'sam-lab.sqlite'))
 
-    expect((sqlite.prepare('PRAGMA user_version').get() as { user_version: number }).user_version).toBe(1)
+    expect((sqlite.prepare('PRAGMA user_version').get() as { user_version: number }).user_version).toBe(2)
+    const workspaceColumns = sqlite.prepare('PRAGMA table_info(workspaces)').all() as unknown as { name: string }[]
+    const checkpointColumns = sqlite.prepare('PRAGMA table_info(catalog_checkpoints)').all() as unknown as { name: string }[]
+    expect(workspaceColumns.map((column) => column.name)).not.toEqual(expect.arrayContaining(['payload', 'draft_payload']))
+    expect(checkpointColumns.map((column) => column.name)).not.toContain('payload')
+    expect((sqlite.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").all() as unknown as { name: string }[]).map((row) => row.name)).toEqual(expect.arrayContaining([
+      'workspace_documents',
+      'graph_snapshots',
+      'graph_nodes',
+      'graph_edges',
+      'workspace_versions',
+      'catalog_checkpoint_values',
+    ]))
     sqlite.close()
+  })
+
+  it('migrates v1 workspace, draft, versions and checkpoints without retaining JSON blob columns', () => {
+    const target = directory('relational-migration')
+    const path = join(target, 'sam-lab.sqlite')
+    const legacy = new DatabaseSync(path)
+    legacy.exec(`
+      CREATE TABLE app_settings (key TEXT PRIMARY KEY, value TEXT NOT NULL, updated_at TEXT NOT NULL);
+      CREATE TABLE workspaces (
+        id TEXT PRIMARY KEY, name TEXT NOT NULL, payload TEXT NOT NULL, draft_payload TEXT,
+        archived INTEGER NOT NULL DEFAULT 0, dirty INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL, updated_at TEXT NOT NULL, draft_updated_at TEXT
+      );
+      CREATE TABLE catalog_checkpoints (
+        scope_id TEXT NOT NULL, checkpoint_key TEXT NOT NULL, payload TEXT NOT NULL,
+        updated_at TEXT NOT NULL, PRIMARY KEY (scope_id, checkpoint_key)
+      );
+      PRAGMA user_version = 1;
+    `)
+    const nodes = [
+      { id: 'source', type: 'pipeline', position: { x: 10, y: 20 }, data: { kind: 'source', label: 'Licenses', schema: [{ name: 'seat_id', type: 'string' }] } },
+      { id: 'profile', type: 'pipeline', position: { x: 310, y: 20 }, data: { kind: 'profile', label: 'License profile', schema: [] } },
+    ]
+    const edges = [{ id: 'source-profile', source: 'source', target: 'profile', type: 'elastic' }]
+    const committed = {
+      projectTitle: 'License inventory',
+      nodes,
+      edges,
+      versions: [{
+        id: 'version-1',
+        label: 'Bind source',
+        createdAt: '2026-07-26T20:00:00.000Z',
+        origin: 'agent',
+        nodes,
+        edges,
+        blockingIssues: 0,
+        status: 'committed',
+        evidence: [{
+          tool: 'get_entities',
+          urn: 'urn:license',
+          capturedAt: '2026-07-26T20:00:00.000Z',
+          expiresAt: '2026-07-26T20:05:00.000Z',
+          status: 'ok',
+          summary: 'License source read.',
+          cached: false,
+          stale: false,
+        }],
+      }],
+      projectSettings: { inspectorOpen: true, libraryOpen: false },
+    }
+    const draft = { ...committed, projectTitle: 'License inventory draft', nodes: [...nodes, { id: 'review', type: 'pipeline', position: { x: 610, y: 20 }, data: { kind: 'review', label: 'Review', schema: [] } }] }
+    legacy.prepare(`
+      INSERT INTO workspaces (id, name, payload, draft_payload, archived, dirty, created_at, updated_at, draft_updated_at)
+      VALUES ('workspace-v1', 'License inventory', ?, ?, 0, 1, ?, ?, ?)
+    `).run(JSON.stringify(committed), JSON.stringify(draft), '2026-07-26T20:00:00.000Z', '2026-07-26T20:00:00.000Z', '2026-07-26T20:01:00.000Z')
+    legacy.prepare('INSERT INTO app_settings (key, value, updated_at) VALUES (?, ?, ?)').run('active-workspace-id', 'workspace-v1', '2026-07-26T20:00:00.000Z')
+    legacy.prepare('INSERT INTO catalog_checkpoints (scope_id, checkpoint_key, payload, updated_at) VALUES (?, ?, ?, ?)').run(
+      'workspace-v1',
+      'catalog:test',
+      JSON.stringify({ inspected: 2, total: 2, datasets: [{ urn: 'urn:license', issues: [] }] }),
+      '2026-07-26T20:01:00.000Z',
+    )
+    legacy.close()
+
+    const state = loadWorkspaceManagerState(target, true)
+    expect(state.activeWorkspace?.payload).toEqual(committed)
+    expect(state.recovery?.payload).toEqual(draft)
+    expect(loadCatalogCheckpoint(target, 'catalog:test')).toEqual({ inspected: 2, total: 2, datasets: [{ urn: 'urn:license', issues: [] }] })
+    closeWorkspaceDatabase()
+
+    expect(existsSync(join(target, 'sam-lab.pre-relational-v1.sqlite'))).toBe(true)
+    const migrated = new DatabaseSync(path)
+    expect((migrated.prepare('PRAGMA user_version').get() as { user_version: number }).user_version).toBe(2)
+    expect((migrated.prepare('PRAGMA table_info(workspaces)').all() as unknown as { name: string }[]).map((column) => column.name)).not.toEqual(expect.arrayContaining(['payload', 'draft_payload']))
+    expect((migrated.prepare('PRAGMA table_info(catalog_checkpoints)').all() as unknown as { name: string }[]).map((column) => column.name)).not.toContain('payload')
+    expect((migrated.prepare('SELECT COUNT(*) AS count FROM graph_nodes').get() as { count: number }).count).toBeGreaterThan(0)
+    expect((migrated.prepare('SELECT COUNT(*) AS count FROM graph_edges').get() as { count: number }).count).toBeGreaterThan(0)
+    expect((migrated.prepare('PRAGMA quick_check').get() as { quick_check: string }).quick_check).toBe('ok')
+    migrated.close()
   })
 
   it('isolates catalog checkpoints by active workspace', () => {
