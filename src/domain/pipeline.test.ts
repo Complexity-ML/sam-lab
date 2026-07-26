@@ -42,7 +42,7 @@ describe('pipeline validation', () => {
     expect(proposal.updatedNodes[0].patch.kind).toBe('review')
   })
 
-  it('removes a disconnected duplicate while preserving starter sidecars and unique drafts', () => {
+  it('removes a disconnected duplicate while preserving host starters and unique drafts', () => {
     const source = { ...newCard('source', 0), id: 'source', data: { ...newCard('source', 0).data, datahubUrn: 'urn:orders' } }
     const connectedProfile = { ...newCard('profile', 1), id: 'profile-connected', data: { ...newCard('profile', 1).data, datahubUrn: 'urn:orders' } }
     const duplicateProfile = { ...newCard('profile', 2), id: 'profile-orphan', data: { ...newCard('profile', 2).data, datahubUrn: 'urn:orders' } }
@@ -56,13 +56,47 @@ describe('pipeline validation', () => {
     expect(next.map((node) => node.id)).toEqual(['control', 'source', 'profile-connected', 'unique-draft'])
   })
 
-  it('removes duplicated orphan profiles and every dangling edge from persisted graphs', () => {
+  it('removes an orphaned profile whose DataHub identity differs only by casing', () => {
     const source = { ...newCard('source', 0), id: 'source' }
-    const profile = { ...newCard('profile', 1), id: 'profile', data: { ...newCard('profile', 1).data, assetRef: 'urn:orders' } }
+    const connectedProfile = {
+      ...newCard('profile', 1),
+      id: 'profile-connected',
+      data: { ...newCard('profile', 1).data, assetRef: 'urn:li:dataset:(urn:li:dataPlatform:dbt,ORDER_DETAILS,PROD)' },
+    }
+    const orphanProfile = {
+      ...newCard('profile', 2),
+      id: 'profile-orphan',
+      data: { ...newCard('profile', 2).data, assetRef: 'urn:li:dataset:(urn:li:dataPlatform:dbt,order_details,PROD)' },
+    }
+    const next = pruneOrphanedCards([source, connectedProfile, orphanProfile], [{ id: 'source-profile', source: source.id, target: connectedProfile.id }])
+    expect(next.map((node) => node.id)).toEqual(['source', 'profile-connected'])
+  })
+
+  it('preserves reusable committed and manual profile sidecars when they do not overlap the branch', () => {
+    const committedBase = newCard('profile', 0)
+    const draftBase = newCard('profile', 1)
+    const committed = {
+      ...committedBase,
+      id: 'committed-orphan',
+      data: { ...committedBase.data, assetRef: 'urn:committed', status: 'healthy' as const },
+    }
+    const draft = {
+      ...draftBase,
+      id: 'manual-draft',
+      data: { ...draftBase.data, assetRef: 'urn:draft', status: 'draft' as const },
+    }
+
+    expect(pruneOrphanedCards([committed, draft], []).map((node) => node.id)).toEqual(['committed-orphan', 'manual-draft'])
+  })
+
+  it('removes a stale profile reconstructed under a connected card and every dangling edge', () => {
+    const source = { ...newCard('source', 0), id: 'source' }
+    const profile = { ...newCard('profile', 1), id: 'profile' }
     const orphan = {
       ...newCard('profile', 2),
       id: 'orphan',
-      data: { ...newCard('profile', 2).data, assetRef: 'URN:ORDERS', status: 'healthy' as const },
+      position: { ...profile.position },
+      data: { ...newCard('profile', 2).data, status: 'healthy' as const },
     }
     const graph = prunePipelineGraph(
       [source, profile, orphan],

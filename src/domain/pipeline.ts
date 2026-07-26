@@ -383,25 +383,39 @@ const hostStarterKinds = new Set<CardKind>(['control', 'explorer', 'worker'])
 const floatingSidecarKinds = new Set<CardKind>(['profile'])
 
 function orphanIdentity(node: PipelineNode) {
+  // DataHub URNs and provider labels are not consistently cased. Treat a
+  // casing-only variation as the same visual card so agent repairs cannot
+  // leave duplicate profile sidecars on one canvas.
   const asset = (node.data.assetRef ?? node.data.datahubUrn)?.trim().toLowerCase()
   return asset ? `${node.data.kind}:${asset}` : `${node.data.kind}:${node.data.label.trim().toLowerCase()}`
 }
 
 /**
- * Compact profile sidecars may float until a governed branch consumes them.
- * Duplicated sidecars and every other newly added orphan are visual debris.
+ * Host starters and compact profile memories may float. A disconnected
+ * sidecar becomes reconstruction debris when it duplicates a connected card
+ * identity or occupies the same canvas slot as one.
  */
 export function pruneOrphanedCards(nodes: PipelineNode[], edges: Edge[], strictNodeIds: Iterable<string> = []): PipelineNode[] {
   const nodeIds = new Set(nodes.map((node) => node.id))
   const validEdges = edges.filter((edge) => nodeIds.has(edge.source) && nodeIds.has(edge.target))
   const connected = new Set(validEdges.flatMap((edge) => [edge.source, edge.target]))
   const strict = new Set(strictNodeIds)
-  const connectedIdentities = new Set(nodes.filter((node) => connected.has(node.id)).map(orphanIdentity))
+  const connectedNodes = nodes.filter((node) => connected.has(node.id))
+  const connectedIdentities = new Set(connectedNodes.map(orphanIdentity))
+  const overlapsConnectedCard = (node: PipelineNode) => connectedNodes.some((candidate) => (
+    candidate.id !== node.id
+    && Math.abs(candidate.position.x - node.position.x) <= 4
+    && Math.abs(candidate.position.y - node.position.y) <= 4
+  ))
   return nodes.filter((node) => {
     if (hostStarterKinds.has(node.data.kind) || connected.has(node.id)) return true
     // A disconnected copy of an already connected card is always visual
     // debris, including profile memories left behind by an agent repair.
     if (connectedIdentities.has(orphanIdentity(node))) return false
+    // Persisted repair diffs can retain an older profile at the exact XY slot
+    // later assigned to its replacement. Although hidden under the visible
+    // card, React Flow still routes elastic edges around that stale obstacle.
+    if (floatingSidecarKinds.has(node.data.kind) && overlapsConnectedCard(node)) return false
     if (floatingSidecarKinds.has(node.data.kind)) return true
     // Every card created by the current transaction must join a branch.
     if (strict.has(node.id)) return false
@@ -409,6 +423,11 @@ export function pruneOrphanedCards(nodes: PipelineNode[], edges: Edge[], strictN
   })
 }
 
+/**
+ * Normalizes a persisted or proposed graph as one atomic unit. Removing the
+ * orphan cards and their dangling edges together keeps React Flow obstacle
+ * routing aligned with the cards that are actually visible.
+ */
 export function prunePipelineGraph(nodes: PipelineNode[], edges: Edge[], strictNodeIds: Iterable<string> = []): { nodes: PipelineNode[]; edges: Edge[] } {
   const prunedNodes = pruneOrphanedCards(nodes, edges, strictNodeIds)
   const keptNodeIds = new Set(prunedNodes.map((node) => node.id))
