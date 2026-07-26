@@ -1,5 +1,5 @@
 import { Background, BackgroundVariant, Controls, MarkerType, MiniMap, ReactFlow, type Connection, type Edge, type EdgeTypes, type NodeChange, type EdgeChange, type NodeTypes, type OnReconnect } from '@xyflow/react'
-import { FileWarning, ListChecks, LoaderCircle, PanelLeftOpen, PanelRightOpen, Pencil, ScrollText, ShieldAlert, Trash2 } from 'lucide-react'
+import { FileText, FileWarning, ListChecks, LoaderCircle, PanelLeftOpen, PanelRightOpen, Pencil, ScrollText, ShieldAlert, Trash2 } from 'lucide-react'
 import { useMemo, type DragEvent, type MouseEvent } from 'react'
 import { PipelineCard } from '../components/PipelineCard'
 import { ElasticEdge, ElasticRoutingProvider } from '../components/shared/ElasticEdge'
@@ -29,6 +29,8 @@ interface PipelineCanvasViewProps {
   nodes: PipelineNode[]
   reportCount: number
   reportsOpen: boolean
+  resultCount: number
+  resultsOpen: boolean
   riskCount: number
   risksOpen: boolean
   onConnect(connection: Connection): void
@@ -46,13 +48,14 @@ interface PipelineCanvasViewProps {
   onOpenActions(): void
   onPaneClick(): void
   onOpenReports(): void
+  onOpenResults(): void
   onOpenRisks(): void
   onSelectNode(nodeId: string): void
   theme: 'light' | 'dark'
 }
 
 export function PipelineCanvasView(props: PipelineCanvasViewProps) {
-  const { activityBusy, actionsOpen, contextMenu, edges, inspectorOpen, libraryOpen, logsOpen, nodes, onConnect, onDeleteCard, onDrop, onEdgesChange, onEditCard, onFlowInit, onNodeContextMenu, onNodesChange, onOpenActions, onOpenInspector, onOpenLibrary, onOpenLogs, onOpenReports, onOpenRisks, onPaneClick, onReconnect, onSelectNode, reportCount, reportsOpen, riskCount, risksOpen, theme } = props
+  const { activityBusy, actionsOpen, contextMenu, edges, inspectorOpen, libraryOpen, logsOpen, nodes, onConnect, onDeleteCard, onDrop, onEdgesChange, onEditCard, onFlowInit, onNodeContextMenu, onNodesChange, onOpenActions, onOpenInspector, onOpenLibrary, onOpenLogs, onOpenReports, onOpenResults, onOpenRisks, onPaneClick, onReconnect, onSelectNode, reportCount, reportsOpen, resultCount, resultsOpen, riskCount, risksOpen, theme } = props
   const renderedEdges = useMemo(() => edges.map((edge) => ({ ...edge, type: 'elastic', markerEnd: { type: MarkerType.ArrowClosed, color: '#94a3b8' }, style: { stroke: '#94a3b8', strokeWidth: 1.6 } })), [edges])
   const nodeKinds = useMemo(() => new Map(nodes.map((node) => [node.id, node.data.kind])), [nodes])
   const renderMiniMap = nodes.length <= graphPerformanceTargets.minimapNodeLimit
@@ -66,6 +69,7 @@ export function PipelineCanvasView(props: PipelineCanvasViewProps) {
       {!inspectorOpen && <button aria-label="Open inspector" className="inspector-open" onClick={onOpenInspector} title="Open inspector" type="button"><span>Inspector</span><PanelRightOpen size={16} /></button>}
       {!risksOpen && <button aria-label="Open impact and risks" className={`risks-open${riskCount ? ' has-risks' : ''}`} onClick={onOpenRisks} title={`${riskCount} actionable risk${riskCount === 1 ? '' : 's'} or coverage gap${riskCount === 1 ? '' : 's'}`} type="button"><span>Risks</span><ShieldAlert size={16} />{riskCount > 0 && <em aria-label={`${riskCount} actionable risks or coverage gaps`}>{riskCount > 99 ? '99+' : riskCount}</em>}</button>}
       {!reportsOpen && <button aria-label="Open incident reports" className={`reports-open${reportCount ? ' has-reports' : ''}`} onClick={onOpenReports} title={`${reportCount} incident report${reportCount === 1 ? '' : 's'} requiring attention`} type="button"><span>Reports</span><FileWarning size={16} />{reportCount > 0 && <em aria-label={`${reportCount} reports requiring attention`}>{reportCount > 99 ? '99+' : reportCount}</em>}</button>}
+      {!resultsOpen && <button aria-label="Open analysis results" className={`results-open${resultCount ? ' has-results' : ''}`} onClick={onOpenResults} title={`${resultCount} analysis result${resultCount === 1 ? '' : 's'} available`} type="button"><span>Results</span><FileText size={16} />{resultCount > 0 && <em aria-label={`${resultCount} analysis results available`}>{resultCount > 99 ? '99+' : resultCount}</em>}</button>}
     </div>
     <div className="canvas-toolbar"><div><span className="live-dot" />Live validation</div><div>{nodes.length} cards <span>·</span> {edges.length} edges</div></div>
     <ElasticRoutingProvider nodes={nodes}>

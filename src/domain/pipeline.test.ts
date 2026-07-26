@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { validatePipeline } from '../validation'
 import { governanceProposalFixture } from '../test/fixtures/agent-proposals'
-import { applyProposal, customerActivationEdges, customerActivationNodes, initialEdges as blankEdges, initialNodes as blankNodes, newCard, pruneOrphanedCards } from './pipeline'
+import { applyProposal, customerActivationEdges, customerActivationNodes, initialEdges as blankEdges, initialNodes as blankNodes, newCard, pruneOrphanedCards, prunePipelineGraph } from './pipeline'
 
 const initialNodes = customerActivationNodes
 const initialEdges = customerActivationEdges
@@ -54,5 +54,26 @@ describe('pipeline validation', () => {
     )
 
     expect(next.map((node) => node.id)).toEqual(['control', 'source', 'profile-connected', 'unique-draft'])
+  })
+
+  it('removes duplicated orphan profiles and every dangling edge from persisted graphs', () => {
+    const source = { ...newCard('source', 0), id: 'source' }
+    const profile = { ...newCard('profile', 1), id: 'profile', data: { ...newCard('profile', 1).data, assetRef: 'urn:orders' } }
+    const orphan = {
+      ...newCard('profile', 2),
+      id: 'orphan',
+      data: { ...newCard('profile', 2).data, assetRef: 'URN:ORDERS', status: 'healthy' as const },
+    }
+    const graph = prunePipelineGraph(
+      [source, profile, orphan],
+      [
+        { id: 'valid', source: source.id, target: profile.id },
+        { id: 'dangling-from-orphan', source: orphan.id, target: 'missing' },
+        { id: 'dangling-to-missing', source: profile.id, target: 'missing' },
+      ],
+    )
+
+    expect(graph.nodes.map((node) => node.id)).toEqual(['source', 'profile'])
+    expect(graph.edges.map((edge) => edge.id)).toEqual(['valid'])
   })
 })

@@ -45,7 +45,7 @@ interface AutonomousPlayerOptions {
   discardInvalidProposal(blockerIds: string[]): void
   connectionMode: 'demo' | 'connected'
   edges: Edge[]
-  fitCommittedGraph(): void
+  fitCommittedGraph(nodeIds?: Iterable<string>): void
   inspectDataHubAsset(urn: string, force?: boolean, connectorId?: string, mode?: 'summary' | 'deep'): Promise<CatalogInspection>
   inspectorOpen: boolean
   issues: ValidationIssue[]
@@ -845,7 +845,11 @@ export function useAutonomousPlayer(options: AutonomousPlayerOptions) {
         })
         if (autonomousVersionId && projectTitle === 'Untitled pipeline') setProjectTitle(nextProposal.title.slice(0, 72))
         if (autonomousVersionId) {
-          if (nextProposal.addedNodes.length > 0) fitCommittedGraph()
+          if (nextProposal.addedNodes.length > 0) fitCommittedGraph([
+            ...nextProposal.addedNodes.map((node) => node.id),
+            ...nextProposal.updatedNodes.map((node) => node.nodeId),
+            ...nextProposal.addedEdges.flatMap((edge) => [edge.source, edge.target]),
+          ])
           await window.dataLab.updateAgentProposalMemoryStatus(proposalGraphFingerprint, 'committed', autonomousVersionId).catch(() => undefined)
           atomicRepairState.current = undefined
           if (monitored) {
@@ -1265,7 +1269,11 @@ export function useAutonomousPlayer(options: AutonomousPlayerOptions) {
         detail: currentProposal.summary,
         versionId: revisionId,
       })
-      fitCommittedGraph()
+      fitCommittedGraph([
+        ...currentProposal.addedNodes.map((node) => node.id),
+        ...currentProposal.updatedNodes.map((node) => node.nodeId),
+        ...currentProposal.addedEdges.flatMap((edge) => [edge.source, edge.target]),
+      ])
       if (!writebackRequested) {
         continuePlayer(`Human Review approved "${currentProposal.title}". Reread the committed graph, reports, diagnostics and version memory, then propose the next coherent safe iteration. Do not repeat the approved diff.`)
         return true

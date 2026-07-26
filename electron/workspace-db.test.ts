@@ -138,13 +138,25 @@ describe('SQLite workspace persistence', () => {
       rationale: 'The source has no reusable entitlement comparison.',
     }
     rememberAgentProposal(target, proposal)
+    saveCatalogCheckpoint(target, 'catalog:workbench', { inspected: 12 })
     const first = createWorkspace(target, 'License review', { projectTitle: 'License review' })
     expect(listAgentProposalMemory(target)).toMatchObject([{ scopeId: first.activeWorkspaceId, title: proposal.title }])
+    expect(loadCatalogCheckpoint(target, 'catalog:workbench')).toEqual({ inspected: 12 })
 
     createWorkspace(target, 'Renewals', { projectTitle: 'Renewals' })
     expect(listAgentProposalMemory(target)).toEqual([])
     openWorkspace(target, first.activeWorkspaceId!)
     expect(listAgentProposalMemory(target)).toHaveLength(1)
+  })
+
+  it('versions the current SQLite schema', () => {
+    const target = directory('schema-version')
+    loadWorkspaceManagerState(target)
+    closeWorkspaceDatabase()
+    const sqlite = new DatabaseSync(join(target, 'sam-lab.sqlite'))
+
+    expect((sqlite.prepare('PRAGMA user_version').get() as { user_version: number }).user_version).toBe(1)
+    sqlite.close()
   })
 
   it('isolates catalog checkpoints by active workspace', () => {

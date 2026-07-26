@@ -1,6 +1,7 @@
 import type { Edge } from '@xyflow/react'
 import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react'
-import type { PipelineNode } from '../domain/pipeline'
+import { layoutPipeline } from '../domain/layout'
+import { prunePipelineGraph, type PipelineNode } from '../domain/pipeline'
 import type { PipelineVersion } from '../domain/versioning'
 import { isWorkspacePayload, type WorkspaceManagerState, type WorkspacePayload, type WorkspaceSaveState } from '../domain/workspace'
 import { notifyError } from '../domain/toasts'
@@ -31,14 +32,22 @@ export function useWorkspacePersistence(options: WorkspacePersistenceOptions) {
   const [saveState, setSaveState] = useState<WorkspaceSaveState>('unsaved')
   const [ready, setReady] = useState(false)
   const persistenceEnabled = useRef(false)
+  const autoCreatePending = useRef(false)
   const lastSnapshot = useRef('')
   const latestSnapshot = useRef('')
   const payload: WorkspacePayload = { projectTitle, nodes, edges, versions, projectSettings: { inspectorOpen, libraryOpen } }
 
   const applyPayload = (workspace: WorkspacePayload) => {
-    const normalized = { ...workspace, projectSettings: workspace.projectSettings ?? { inspectorOpen, libraryOpen } }
+    const graph = prunePipelineGraph(workspace.nodes, workspace.edges)
+    const graphChanged = graph.nodes.length !== workspace.nodes.length || graph.edges.length !== workspace.edges.length
+    const normalized = {
+      ...workspace,
+      nodes: graphChanged ? layoutPipeline(graph.nodes, graph.edges) : graph.nodes,
+      edges: graph.edges,
+      projectSettings: workspace.projectSettings ?? { inspectorOpen, libraryOpen },
+    }
     const serialized = JSON.stringify(normalized)
-    lastSnapshot.current = serialized
+    lastSnapshot.current = graphChanged ? '' : serialized
     latestSnapshot.current = serialized
     setNodes(normalized.nodes)
     setEdges(normalized.edges)
@@ -83,9 +92,31 @@ export function useWorkspacePersistence(options: WorkspacePersistenceOptions) {
   }, [])
 
   useEffect(() => {
-    if (!ready || !window.dataLab || !persistenceEnabled.current || saveState === 'recovering') return
+    if (!ready || !window.dataLab || saveState === 'recovering') return
     const serialized = JSON.stringify(payload)
     latestSnapshot.current = serialized
+    if (!persistenceEnabled.current) {
+      const hasDurableContent = nodes.length > 0 || edges.length > 0 || versions.length > 0
+      if (!hasDurableContent || manager.activeWorkspaceId || autoCreatePending.current) return
+      const timer = window.setTimeout(() => {
+        autoCreatePending.current = true
+        void window.dataLab?.createWorkspace(projectTitle, payload).then((state) => {
+          persistenceEnabled.current = true
+          lastSnapshot.current = serialized
+          setManager(state)
+          setSaveState(latestSnapshot.current === serialized ? 'saved' : 'unsaved')
+          setActivity(`SQLite workspace created automatically · ${state.activeWorkspace?.name ?? projectTitle}`)
+          recordDiagnostic({ category: 'workspace', action: 'workspace.auto-create', status: 'success', detail: { workspaceId: state.activeWorkspaceId } })
+        }).catch((error) => {
+          notifyError(error, 'SQLite workspace creation failed')
+          setSaveState('unsaved')
+          setActivity(`Workspace creation failed · ${error instanceof Error ? error.message : 'SQLite unavailable'}`)
+        }).finally(() => {
+          autoCreatePending.current = false
+        })
+      }, 650)
+      return () => window.clearTimeout(timer)
+    }
     if (serialized === lastSnapshot.current) return
     setSaveState('unsaved')
     const timer = window.setTimeout(() => {
@@ -106,7 +137,7 @@ export function useWorkspacePersistence(options: WorkspacePersistenceOptions) {
       })
     }, 650)
     return () => window.clearTimeout(timer)
-  }, [edges, inspectorOpen, libraryOpen, nodes, projectTitle, ready, saveState, versions])
+  }, [edges, inspectorOpen, libraryOpen, manager.activeWorkspaceId, nodes, projectTitle, ready, saveState, versions])
 
   const create = async (name: string, workspace = payload) => {
     if (!window.dataLab) throw new Error('Workspace persistence requires the Electron application')

@@ -1,6 +1,6 @@
 import { AlertCircle, ArrowLeft, CheckCircle2, Focus, PanelRightClose } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
-import { PanelHeader } from '../components/shared/PanelHeader'
+import { PanelFooterActions, PanelHeader } from '../components/shared/PanelHeader'
 import { PanelScrollArea } from '../components/shared/PanelScrollArea'
 import { DataHubAssetPicker } from '../components/shared/DataHubAssetPicker'
 import { CatalogExplorerSettings } from '../components/shared/CatalogExplorerSettings'
@@ -37,10 +37,11 @@ export function CardInspectorView({ dataHubConnected, errorCount, issues, onBack
   const visibleLineage = lineage.slice(0, lineageExpanded ? 30 : 12)
   const risk = selected?.data.kind === 'risk' ? parseRiskAssessmentRule(selected.data.rule) : undefined
   return <>
-    <PanelHeader action={<div className="panel-heading-actions">
-      {onBack && <button aria-label={`Back to ${returnLabel ?? 'previous panel'}`} className="panel-back" onClick={onBack} title={`Back to ${returnLabel ?? 'previous panel'}`} type="button"><ArrowLeft size={14} /><span>{returnLabel}</span></button>}
-      <button aria-label="Close inspector" className="panel-toggle" onClick={onClose} title="Close inspector" type="button"><PanelRightClose size={16} /></button>
-    </div>} eyebrow="INSPECT" title={selected ? cardLabels[selected.data.kind] : 'Pipeline'} />
+    <PanelHeader
+      action={<button aria-label="Close inspector" className="panel-toggle" onClick={onClose} title="Close inspector" type="button"><PanelRightClose size={16} /></button>}
+      eyebrow="INSPECT"
+      title={selected ? cardLabels[selected.data.kind] : 'Pipeline'}
+    />
     <PanelScrollArea className="inspector-panel-content" label="Inspector content">
       {selected ? <div className="inspector-form">
       {selected.data.kind === 'diagram' && <section className="diagram-focus"><div><Focus size={15} /><span><strong>Incident workstream</strong><small>Frame the parallel incident branches merged by this diagram.</small></span></div><button onClick={() => onFocusDiagram(selected.id)} type="button">Focus subgraph</button></section>}
@@ -73,5 +74,8 @@ export function CardInspectorView({ dataHubConnected, errorCount, issues, onBack
         {issues.length === 0 && <div className="all-clear"><CheckCircle2 size={17} /><div><strong>All atomic checks passed</strong><small>Direction, topology and governance contracts are valid.</small></div></div>}
       </section>
     </PanelScrollArea>
+    {onBack && <PanelFooterActions>
+      <button aria-label={`Back to ${returnLabel ?? 'previous panel'}`} className="panel-back" onClick={onBack} title={`Back to ${returnLabel ?? 'previous panel'}`} type="button"><ArrowLeft size={14} /><span>{returnLabel}</span></button>
+    </PanelFooterActions>}
   </>
 }

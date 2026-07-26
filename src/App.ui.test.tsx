@@ -90,6 +90,15 @@ beforeEach(() => {
 
 function installElectronWorkspaceMock(state: Awaited<ReturnType<NonNullable<typeof window.dataLab>['loadWorkspaceState']>>) {
   const autosaveWorkspace = vi.fn(async () => ({ saved: true as const, workspaceId: state.activeWorkspaceId ?? 'workspace', updatedAt: new Date().toISOString() }))
+  const createWorkspace = vi.fn(async (name: string, payload: Parameters<NonNullable<typeof window.dataLab>['createWorkspace']>[1]) => {
+    const timestamp = new Date().toISOString()
+    return {
+      activeWorkspaceId: 'workspace-auto',
+      activeWorkspace: { id: 'workspace-auto', name, archived: false, dirty: false, createdAt: timestamp, updatedAt: timestamp, payload },
+      uncleanShutdown: false,
+      workspaces: [{ id: 'workspace-auto', name, archived: false, dirty: false, createdAt: timestamp, updatedAt: timestamp }],
+    }
+  })
   const api = {
     runtime: 'electron' as const,
     platform: 'darwin' as const,
@@ -135,6 +144,7 @@ function installElectronWorkspaceMock(state: Awaited<ReturnType<NonNullable<type
       versionId,
     })),
     loadWorkspaceState: vi.fn(async () => state),
+    createWorkspace,
     autosaveWorkspace,
     resolveWorkspaceRecovery: vi.fn(async () => ({ ...state, recovery: undefined, uncleanShutdown: false })),
     deleteWorkspace: vi.fn(async () => state),
@@ -143,7 +153,7 @@ function installElectronWorkspaceMock(state: Awaited<ReturnType<NonNullable<type
     onHumanReviewOpened: vi.fn(() => () => undefined),
   } as unknown as NonNullable<typeof window.dataLab>
   window.dataLab = api
-  return { api, autosaveWorkspace }
+  return { api, autosaveWorkspace, createWorkspace }
 }
 
 function savedEmptyWorkspaceState(id = 'incident-workspace') {
@@ -460,7 +470,7 @@ describe('visual pipeline workspace regressions', () => {
     expect(screen.getByText('stopped')).toBeTruthy()
   })
 
-  it('switches between Card Library, Inspector, Risks, Actions, Live logs and Reports panels', async () => {
+  it('keeps Reports and Results as separate entries alongside the other workspace panels', async () => {
     const user = userEvent.setup()
     render(<App />)
 
@@ -485,6 +495,7 @@ describe('visual pipeline workspace regressions', () => {
     expect(screen.getByRole('region', { name: 'Impact and risks content' }).classList.contains('panel-scroll-area')).toBe(true)
     expect(screen.getByRole('button', { name: 'Open inspector' })).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Open incident reports' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Open analysis results' })).toBeTruthy()
 
     await user.click(screen.getByRole('button', { name: 'Open inspector' }))
     const actionsSticker = screen.getByRole('button', { name: 'Open agent actions' })
@@ -514,9 +525,18 @@ describe('visual pipeline workspace regressions', () => {
 
     await user.click(screen.getByRole('button', { name: 'Open incident reports' }))
     expect(screen.getByRole('button', { name: 'Close incident reports' })).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'Close live logs' })).toBeTruthy()
     expect(screen.getByRole('region', { name: 'Incident reports content' }).classList.contains('panel-scroll-area')).toBe(true)
     expect(screen.getByText('No unresolved incident')).toBeTruthy()
+
+    await user.click(screen.getByRole('button', { name: 'Open analysis results' }))
+    expect(screen.getByRole('dialog', { name: 'Analysis report' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Close analysis results' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Close live logs' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Close incident reports' })).toBeTruthy()
+    expect(screen.getByRole('region', { name: 'Analysis results content' }).classList.contains('panel-scroll-area')).toBe(true)
+    expect(screen.getByText('No materialized risk')).toBeTruthy()
+    await user.click(screen.getByRole('button', { name: 'Close analysis results' }))
+    await user.click(screen.getByRole('button', { name: 'Close incident reports' }))
 
     const inspectorSticker = screen.getByRole('button', { name: 'Open inspector' })
     expect(inspectorSticker.children[0]?.textContent).toBe('Inspector')
@@ -679,6 +699,24 @@ describe('visual pipeline workspace regressions', () => {
     expect(await screen.findByText('Saved blank pipeline')).toBeTruthy()
     expect(screen.getByText('Saved')).toBeTruthy()
     expect(screen.getAllByText('0 cards', { exact: false }).length).toBeGreaterThan(0)
+  })
+
+  it('creates a durable SQLite workspace when the blank workbench receives its first card', async () => {
+    const user = userEvent.setup()
+    const { createWorkspace } = installElectronWorkspaceMock({
+      activeWorkspaceId: null,
+      uncleanShutdown: false,
+      workspaces: [],
+    })
+    render(<App />)
+
+    await user.click(screen.getByTitle('Click to add or drag Asset Source onto the canvas'))
+
+    await waitFor(() => expect(createWorkspace).toHaveBeenCalledTimes(1), { timeout: 1_500 })
+    expect(createWorkspace).toHaveBeenCalledWith('Untitled pipeline', expect.objectContaining({
+      nodes: expect.arrayContaining([expect.objectContaining({ data: expect.objectContaining({ kind: 'source' }) })]),
+    }))
+    expect(screen.getByText('Saved')).toBeTruthy()
   })
 
   it('does not autosave an example over the last active workspace', async () => {

@@ -106,7 +106,7 @@ describe('visual SCSS contracts', () => {
 
   it('keeps every canvas sticker equal-sized and compacts each side without holes', () => {
     const stack = declarations('.canvas-sticker-stack')
-    const stickers = declarations('.inspector-open, .library-open, .actions-open, .logs-open, .risks-open, .reports-open')
+    const stickers = declarations('.inspector-open, .library-open, .actions-open, .logs-open, .risks-open, .reports-open, .results-open')
 
     expect(stack.get('display')).toBe('grid')
     expect(stack.get('grid-auto-flow')).toBe('row')
@@ -115,5 +115,18 @@ describe('visual SCSS contracts', () => {
     expect(stickers.get('width')).toBe('108px')
     expect(stickers.get('height')).toBe('34px')
     expect(stickers.get('min-height')).toBe('34px')
+  })
+
+  it('keeps compact profile evidence on one bounded line', () => {
+    const metrics = declarations('.profile-summary span')
+    const evidence = declarations('.profile-summary > small')
+
+    expect(metrics.get('overflow')).toBe('hidden')
+    expect(metrics.get('text-overflow')).toBe('ellipsis')
+    expect(metrics.get('white-space')).toBe('nowrap')
+    expect(evidence.get('grid-column')).toBe('1 / -1')
+    expect(evidence.get('overflow')).toBe('hidden')
+    expect(evidence.get('text-overflow')).toBe('ellipsis')
+    expect(evidence.get('white-space')).toBe('nowrap')
   })
 })

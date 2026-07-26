@@ -4,6 +4,7 @@ import { AppFooter } from './components/AppFooter'
 import { AppHeader } from './components/AppHeader'
 import { ProposalReviewModal } from './components/ProposalReviewModal'
 import { KeyboardShortcutsModal } from './components/shared/KeyboardShortcutsModal'
+import { Modal } from './components/shared/Modal'
 import type { SettingsSection } from './components/shared/SettingsModal'
 import { WorkspaceRecoveryModal } from './components/shared/WorkspaceRecoveryModal'
 import type { AtomicPipelineRun } from './domain/atomic-execution'
@@ -32,6 +33,7 @@ import { useSelectedCardRework } from './hooks/useSelectedCardRework'
 import { useWorkspacePersistence } from './hooks/useWorkspacePersistence'
 import { validatePipeline } from './validation'
 import { AgentActionsView, type AgentActionLog } from './views/AgentActionsView'
+import { AnalysisResultsView } from './views/AnalysisResultsView'
 import { CardInspectorView } from './views/CardInspectorView'
 import { CardLibraryView } from './views/CardLibraryView'
 import { IncidentReportsView } from './views/IncidentReportsView'
@@ -58,9 +60,10 @@ export default function App() {
   const [inspectorOpen, setInspectorOpen] = useState(true)
   const [leftOperationsPanel, setLeftOperationsPanel] = useState<'actions' | 'logs'>()
   const [reportsOpen, setReportsOpen] = useState(false)
+  const [resultsOpen, setResultsOpen] = useState(false)
   const [risksOpen, setRisksOpen] = useState(false)
   const [riskDomain, setRiskDomain] = useState<'all' | RiskDomain>('all')
-  const [inspectorReturn, setInspectorReturn] = useState<'risks'>()
+  const [inspectorReturn, setInspectorReturn] = useState<'risks' | 'results'>()
   const [nativeFullscreen, setNativeFullscreen] = useState(false)
   const [projectTitle, setProjectTitle] = useState('Untitled pipeline')
   const [activity, setActivity] = useState('Empty workspace · add a card or load an example from Settings')
@@ -210,7 +213,9 @@ export default function App() {
 
   const unresolvedIncidents = incidents.summaries.filter((incident) => incident.status !== 'resolved')
   const proposalAddsReport = Boolean(proposal?.incidentKey && !unresolvedIncidents.some((incident) => incident.incidentKey === proposal.incidentKey))
-  const reportCount = unresolvedIncidents.length + (proposalAddsReport ? 1 : 0)
+  const incidentAttentionCount = unresolvedIncidents.length + (proposalAddsReport ? 1 : 0)
+  const analysisResultCount = nodes.filter((node) => ['profile', 'analysis', 'impact', 'risk', 'validation', 'output'].includes(node.data.kind)).length
+  const reportCount = incidentAttentionCount
   const riskOverview = useMemo(() => collectRiskImpactOverview(nodes, edges), [edges, nodes])
   const activityBusy = player.agentRunning || player.playerStarting || reviewAssistant.busy || ai.chatGPTConnecting || appUpdates.busy || player.stepPending
   const agentActionHistory = useMemo(
@@ -339,10 +344,12 @@ export default function App() {
       mcpTransport={dataHub.mcpTransport}
       onApprovePendingReview={(versionId) => {
         const reviewedVersion = pipelineVersions.versions.find((version) => version.id === versionId)
+        const currentNodeIds = new Set(nodes.map((node) => node.id))
+        const reviewedNodeIds = reviewedVersion?.nodes.filter((node) => !currentNodeIds.has(node.id)).map((node) => node.id) ?? []
         const approved = pipelineVersions.approvePendingVersion(versionId)
         if (!approved) return
         if (projectTitle === 'Untitled pipeline' && reviewedVersion) setProjectTitle(reviewedVersion.label.replace(/^Review · /, '').slice(0, 72))
-        pipeline.fitCommittedGraph()
+        pipeline.fitCommittedGraph(reviewedNodeIds)
         if (player.playerState === 'running') player.queueAutonomousStep(
           'A stored Human Review version was approved. Reread the committed graph, reports, diagnostics and version memory, then propose the next coherent safe iteration.',
           player.playerSessionId.current,
@@ -425,6 +432,8 @@ export default function App() {
         nodes={nodes}
         reportCount={reportCount}
         reportsOpen={reportsOpen}
+        resultCount={analysisResultCount}
+        resultsOpen={resultsOpen}
         riskCount={riskOverview.actionable}
         risksOpen={risksOpen}
         onConnect={pipeline.onConnect}
@@ -441,6 +450,7 @@ export default function App() {
         onOpenLibrary={() => { setLeftOperationsPanel(undefined); setLibraryOpen(true) }}
         onOpenLogs={() => { setLibraryOpen(false); setLeftOperationsPanel('logs') }}
         onOpenReports={() => { setInspectorOpen(false); setRisksOpen(false); setInspectorReturn(undefined); setReportsOpen(true) }}
+        onOpenResults={() => setResultsOpen(true)}
         onOpenRisks={() => { setInspectorOpen(false); setReportsOpen(false); setInspectorReturn(undefined); setRisksOpen(true) }}
         onPaneClick={() => setContextMenu(undefined)}
         onSelectNode={setSelectedId}
@@ -451,10 +461,14 @@ export default function App() {
         ? <aside aria-label="Impact and risks" className="inspector-panel operations-panel" id="sam-lab-risks"><RiskImpactView correctionBusy={player.agentRunning} domain={riskDomain} onClose={() => setRisksOpen(false)} onDomainChange={setRiskDomain} onProposeCorrection={proposeRiskCorrection} onSelectCard={(nodeId) => { setSelectedId(nodeId); setRisksOpen(false); setInspectorReturn('risks'); setInspectorOpen(true) }} overview={riskOverview} scrollPosition={riskScrollPosition} /></aside>
         : reportsOpen
           ? <aside aria-label="Incident reports" className="inspector-panel operations-panel" id="sam-lab-reports"><IncidentReportsView events={incidents.events} incidents={incidents.summaries} onClose={() => setReportsOpen(false)} onOpenProposal={() => setProposalReviewOpen(true)} onSelectCard={(nodeId) => { setSelectedId(nodeId); setReportsOpen(false); setInspectorReturn(undefined); setInspectorOpen(true) }} proposal={proposal?.incidentKey ? proposal : undefined} /></aside>
-        : <aside aria-hidden={!inspectorOpen} aria-label="Card inspector" className={`inspector-panel ${inspectorOpen ? '' : 'is-closed'}`} id="sam-lab-inspector" inert={!inspectorOpen} tabIndex={-1}>
-          <CardInspectorView dataHubConnected={dataHub.catalogConnectionMode === 'connected'} errorCount={errors.length} issues={issues} onBack={inspectorReturn === 'risks' ? () => { setInspectorOpen(false); setInspectorReturn(undefined); setRisksOpen(true) } : undefined} onBindDataHubSource={pipeline.bindDataHubSource} onClose={() => { setInspectorReturn(undefined); setInspectorOpen(false) }} onFocusDiagram={pipeline.focusIncidentDiagram} onInspectDataHubAsset={dataHub.inspectAsset} onOpenDataHubSettings={() => { setSettingsSection('connections'); setSettingsOpen(true) }} onSearchDataHub={dataHub.searchAssets} onSelectNode={setSelectedId} onUpdate={pipeline.updateSelected} returnLabel={inspectorReturn === 'risks' ? 'Risks' : undefined} selected={selected} workbenchAssets={Object.fromEntries(nodes.flatMap((node) => (node.data.assetRef ?? node.data.datahubUrn) ? [[node.data.assetRef ?? node.data.datahubUrn!, { nodeId: node.id, label: node.data.label }]] : []))} />
-        </aside>}
+          : <aside aria-hidden={!inspectorOpen} aria-label="Card inspector" className={`inspector-panel ${inspectorOpen ? '' : 'is-closed'}`} id="sam-lab-inspector" inert={!inspectorOpen} tabIndex={-1}>
+            <CardInspectorView dataHubConnected={dataHub.catalogConnectionMode === 'connected'} errorCount={errors.length} issues={issues} onBack={inspectorReturn ? () => { setInspectorOpen(false); if (inspectorReturn === 'risks') setRisksOpen(true); else setResultsOpen(true); setInspectorReturn(undefined) } : undefined} onBindDataHubSource={pipeline.bindDataHubSource} onClose={() => { setInspectorReturn(undefined); setInspectorOpen(false) }} onFocusDiagram={pipeline.focusIncidentDiagram} onInspectDataHubAsset={dataHub.inspectAsset} onOpenDataHubSettings={() => { setSettingsSection('connections'); setSettingsOpen(true) }} onSearchDataHub={dataHub.searchAssets} onSelectNode={setSelectedId} onUpdate={pipeline.updateSelected} returnLabel={inspectorReturn === 'risks' ? 'Risks' : inspectorReturn === 'results' ? 'Results' : undefined} selected={selected} workbenchAssets={Object.fromEntries(nodes.flatMap((node) => (node.data.assetRef ?? node.data.datahubUrn) ? [[node.data.assetRef ?? node.data.datahubUrn!, { nodeId: node.id, label: node.data.label }]] : []))} />
+          </aside>}
     </section>
+
+    {resultsOpen && <Modal ariaLabelledby="analysis-results-title" className="analysis-results-modal" onClose={() => setResultsOpen(false)}>
+      <AnalysisResultsView nodes={nodes} onClose={() => setResultsOpen(false)} onOpenProposal={() => { setResultsOpen(false); setProposalReviewOpen(true) }} onSelectCard={(nodeId) => { setSelectedId(nodeId); setResultsOpen(false); setInspectorReturn('results'); setReportsOpen(false); setRisksOpen(false); setInspectorOpen(true) }} proposal={proposal?.incidentKey ? proposal : undefined} />
+    </Modal>}
 
     {proposal && !proposalReviewOpen && <button className="proposal-review-reopen" onClick={() => setProposalReviewOpen(true)} type="button"><span aria-hidden="true">✦</span> Review agent proposal</button>}
     <AppFooter activity={activity} playerState={player.playerState} />

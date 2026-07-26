@@ -376,27 +376,25 @@ export function applyProposal(nodes: PipelineNode[], edges: Edge[], proposal: Ag
   })
   const nextEdges = [...edges.filter((edge) => !removed.has(edge.id) && !proposal.addedEdges.some((added) => added.id === edge.id)), ...proposal.addedEdges]
   const nextNodes = [...updated.filter((node) => !proposal.addedNodes.some((added) => added.id === node.id)), ...proposal.addedNodes.map((node) => ({ ...node, data: { ...node.data, status: 'healthy' as const, agentAdded: false } }))]
-  return {
-    nodes: pruneOrphanedCards(nextNodes, nextEdges, proposal.addedNodes.map((node) => node.id)),
-    edges: nextEdges,
-  }
+  return prunePipelineGraph(nextNodes, nextEdges, proposal.addedNodes.map((node) => node.id))
 }
 
 const hostStarterKinds = new Set<CardKind>(['control', 'explorer', 'worker'])
 const floatingSidecarKinds = new Set<CardKind>(['profile'])
 
 function orphanIdentity(node: PipelineNode) {
-  const asset = node.data.assetRef ?? node.data.datahubUrn
+  const asset = (node.data.assetRef ?? node.data.datahubUrn)?.trim().toLowerCase()
   return asset ? `${node.data.kind}:${asset}` : `${node.data.kind}:${node.data.label.trim().toLowerCase()}`
 }
 
 /**
- * Host sidecars and unique workbench drafts may float. New agent cards that
- * failed to join a branch, plus disconnected duplicates of a connected card,
- * are removed so an invalid repair cannot accumulate unused visual debris.
+ * Compact profile sidecars may float until a governed branch consumes them.
+ * Duplicated sidecars and every other newly added orphan are visual debris.
  */
 export function pruneOrphanedCards(nodes: PipelineNode[], edges: Edge[], strictNodeIds: Iterable<string> = []): PipelineNode[] {
-  const connected = new Set(edges.flatMap((edge) => [edge.source, edge.target]))
+  const nodeIds = new Set(nodes.map((node) => node.id))
+  const validEdges = edges.filter((edge) => nodeIds.has(edge.source) && nodeIds.has(edge.target))
+  const connected = new Set(validEdges.flatMap((edge) => [edge.source, edge.target]))
   const strict = new Set(strictNodeIds)
   const connectedIdentities = new Set(nodes.filter((node) => connected.has(node.id)).map(orphanIdentity))
   return nodes.filter((node) => {
@@ -404,13 +402,20 @@ export function pruneOrphanedCards(nodes: PipelineNode[], edges: Edge[], strictN
     // A disconnected copy of an already connected card is always visual
     // debris, including profile memories left behind by an agent repair.
     if (connectedIdentities.has(orphanIdentity(node))) return false
-    // Compact profiles are legitimate metadata-only sidecars and may remain
-    // disconnected until a later governed branch consumes their snapshot.
     if (floatingSidecarKinds.has(node.data.kind)) return true
-    // Every other card created by the current transaction must join a branch.
+    // Every card created by the current transaction must join a branch.
     if (strict.has(node.id)) return false
     return true
   })
+}
+
+export function prunePipelineGraph(nodes: PipelineNode[], edges: Edge[], strictNodeIds: Iterable<string> = []): { nodes: PipelineNode[]; edges: Edge[] } {
+  const prunedNodes = pruneOrphanedCards(nodes, edges, strictNodeIds)
+  const keptNodeIds = new Set(prunedNodes.map((node) => node.id))
+  return {
+    nodes: prunedNodes,
+    edges: edges.filter((edge) => keptNodeIds.has(edge.source) && keptNodeIds.has(edge.target)),
+  }
 }
 
 export function newCard(kind: CardKind, index: number): PipelineNode {

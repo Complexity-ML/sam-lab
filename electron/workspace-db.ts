@@ -244,6 +244,7 @@ function db(userDataDirectory: string) {
       ON agent_proposal_memory (graph_fingerprint) WHERE workspace_id IS NULL;
     CREATE INDEX IF NOT EXISTS agent_proposal_memory_workspace_time_idx
       ON agent_proposal_memory (workspace_id, last_seen_at DESC);
+    PRAGMA user_version = 1;
   `)
   const incidentColumns = database.prepare('PRAGMA table_info(incident_events)').all() as unknown as { name: string }[]
   if (!incidentColumns.some((column) => column.name === 'fingerprint')) database.exec('ALTER TABLE incident_events ADD COLUMN fingerprint TEXT')
@@ -354,7 +355,10 @@ export function createWorkspace(userDataDirectory: string, name: unknown, payloa
     INSERT INTO workspaces (id, name, payload, archived, dirty, created_at, updated_at)
     VALUES (?, ?, ?, 0, 0, ?, ?)
   `).run(id, normalizedName, serialized, timestamp, timestamp)
-  if (!previousWorkspaceId) target.prepare('UPDATE agent_proposal_memory SET workspace_id = ? WHERE workspace_id IS NULL').run(id)
+  if (!previousWorkspaceId) {
+    target.prepare('UPDATE agent_proposal_memory SET workspace_id = ? WHERE workspace_id IS NULL').run(id)
+    target.prepare("UPDATE catalog_checkpoints SET scope_id = ? WHERE scope_id = 'workbench'").run(id)
+  }
   writeSetting(target, ACTIVE_WORKSPACE_KEY, id)
   return currentState(target, false)
 }
