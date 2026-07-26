@@ -1,0 +1,20 @@
+{
+  "presetId": "pii-masking",
+  "synthetic": true,
+  "expectedValidation": [
+    {
+      "id": "sensitive-unprotected-pii-source-pii-output",
+      "severity": "error",
+      "title": "Sensitive data reaches an output unprotected"
+    }
+  ],
+  "expectedAgentDiff": {
+    "summary": "Insert deterministic masking between the synthetic source and marketing output.",
+    "actions": [
+      { "type": "remove_edge", "edgeId": "e-pii-direct" },
+      { "type": "add_card", "kind": "transform", "id": "mask-email", "rule": "sha256(email)" },
+      { "type": "add_edge", "source": "pii-source", "target": "mask-email" },
+      { "type": "add_edge", "source": "mask-email", "target": "pii-output" }
+    ]
+  }
+}

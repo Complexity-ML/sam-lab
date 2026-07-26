@@ -1,0 +1,491 @@
+{
+  "schema": "sam-lab.pipeline",
+  "schemaVersion": 1,
+  "exportedAt": "2026-07-23T00:00:00.000Z",
+  "projectTitle": "Order details PII protection",
+  "graph": {
+    "nodes": [
+      {
+        "id": "order-details-source",
+        "type": "pipeline",
+        "position": {
+          "x": 40,
+          "y": 230
+        },
+        "data": {
+          "kind": "source",
+          "label": "order_details",
+          "description": "Real dbt dataset resolved through the official DataHub OSS MCP server.",
+          "owner": "Data Governance",
+          "status": "healthy",
+          "datahubUrn": "urn:li:dataset:(urn:li:dataPlatform:dbt,b2fd91.ORDER_ENTRY_DB.analytics.order_details,PROD)",
+          "datahubPlatform": "dbt",
+          "datahubEnvironment": "PROD",
+          "datahubTags": [
+            "PII"
+          ],
+          "datahubQuality": "healthy",
+          "schema": [
+            {
+              "name": "customer_id",
+              "type": "number",
+              "tags": [
+                "PII"
+              ]
+            },
+            {
+              "name": "cust_email",
+              "type": "string",
+              "tags": [
+                "PII"
+              ]
+            },
+            {
+              "name": "cust_first_name",
+              "type": "string",
+              "tags": [
+                "PII"
+              ]
+            },
+            {
+              "name": "cust_last_name",
+              "type": "string",
+              "tags": [
+                "PII"
+              ]
+            },
+            {
+              "name": "phone_number",
+              "type": "string",
+              "tags": [
+                "PII"
+              ]
+            },
+            {
+              "name": "billing_address_line1",
+              "type": "string",
+              "tags": [
+                "PII"
+              ]
+            },
+            {
+              "name": "billing_address_line2",
+              "type": "string",
+              "tags": [
+                "PII"
+              ]
+            },
+            {
+              "name": "billing_country",
+              "type": "string",
+              "tags": [
+                "PII"
+              ]
+            },
+            {
+              "name": "billing_region",
+              "type": "string",
+              "tags": [
+                "PII"
+              ]
+            },
+            {
+              "name": "billing_town_city",
+              "type": "string",
+              "tags": [
+                "PII"
+              ]
+            },
+            {
+              "name": "billing_zipcode",
+              "type": "number",
+              "tags": [
+                "PII"
+              ]
+            },
+            {
+              "name": "order_total",
+              "type": "number",
+              "tags": [
+                "PII"
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "id": "order-details-profile",
+        "type": "pipeline",
+        "position": {
+          "x": 390,
+          "y": 30
+        },
+        "data": {
+          "kind": "profile",
+          "label": "Order details profile",
+          "description": "Reusable bounded profile from DataHub MCP: 40 fields, 12 PII classifications, no raw rows.",
+          "owner": "SAM LAB Agent",
+          "status": "healthy",
+          "schema": [],
+          "rule": "field_count=40; pii_count=12; raw_rows=false"
+        }
+      },
+      {
+        "id": "order-details-impact",
+        "type": "pipeline",
+        "position": {
+          "x": 390,
+          "y": 230
+        },
+        "data": {
+          "kind": "impact",
+          "label": "18 downstream datasets",
+          "description": "Replayable impact snapshot across Snowflake, dbt, Looker, Power BI and Tableau.",
+          "owner": "Data Governance",
+          "status": "healthy",
+          "schema": [],
+          "rule": "risk=high; affected_datasets=18; protect PII before analytics output"
+        }
+      },
+      {
+        "id": "mask-order-pii",
+        "type": "pipeline",
+        "position": {
+          "x": 740,
+          "y": 230
+        },
+        "data": {
+          "kind": "transform",
+          "label": "Mask order PII",
+          "description": "Tokenize identifiers and redact direct contact fields before analytics consumption.",
+          "owner": "Analytics Engineering",
+          "status": "healthy",
+          "schema": [],
+          "rule": "tokenize(customer_id); sha256(lower(cust_email)); redact(phone_number, billing_address_line1, billing_address_line2)"
+        }
+      },
+      {
+        "id": "review-order-pii",
+        "type": "pipeline",
+        "position": {
+          "x": 1090,
+          "y": 230
+        },
+        "data": {
+          "kind": "review",
+          "label": "Review PII contract",
+          "description": "A data steward approves the exact masking contract and downstream impact.",
+          "owner": "Data Governance",
+          "status": "healthy",
+          "schema": [],
+          "rule": "approve exact transform, impact evidence and governed writeback"
+        }
+      },
+      {
+        "id": "analytics-output",
+        "type": "pipeline",
+        "position": {
+          "x": 1440,
+          "y": 230
+        },
+        "data": {
+          "kind": "output",
+          "label": "Protected analytics",
+          "description": "Analytics output receives only the reviewed protected path.",
+          "owner": "Analytics",
+          "status": "healthy",
+          "schema": []
+        }
+      }
+    ],
+    "edges": [
+      {
+        "id": "source-impact",
+        "source": "order-details-source",
+        "target": "order-details-impact",
+        "type": "elastic"
+      },
+      {
+        "id": "impact-mask",
+        "source": "order-details-impact",
+        "target": "mask-order-pii",
+        "type": "elastic"
+      },
+      {
+        "id": "mask-review",
+        "source": "mask-order-pii",
+        "target": "review-order-pii",
+        "type": "elastic"
+      },
+      {
+        "id": "review-output",
+        "source": "review-order-pii",
+        "target": "analytics-output",
+        "type": "elastic"
+      }
+    ]
+  },
+  "versions": [
+    {
+      "id": "version-order-pii-approved",
+      "label": "Protect order-details PII before analytics consumption",
+      "createdAt": "2026-07-23T00:00:00.000Z",
+      "origin": "agent",
+      "status": "committed",
+      "blockingIssues": 0,
+      "description": "Approved correction: remove the direct PII path, preserve the DataHub impact evidence, and require Human Review before output.",
+      "nodes": [
+        {
+          "id": "order-details-source",
+          "type": "pipeline",
+          "position": {
+            "x": 40,
+            "y": 230
+          },
+          "data": {
+            "kind": "source",
+            "label": "order_details",
+            "description": "Real dbt dataset resolved through the official DataHub OSS MCP server.",
+            "owner": "Data Governance",
+            "status": "healthy",
+            "datahubUrn": "urn:li:dataset:(urn:li:dataPlatform:dbt,b2fd91.ORDER_ENTRY_DB.analytics.order_details,PROD)",
+            "datahubPlatform": "dbt",
+            "datahubEnvironment": "PROD",
+            "datahubTags": [
+              "PII"
+            ],
+            "datahubQuality": "healthy",
+            "schema": [
+              {
+                "name": "customer_id",
+                "type": "number",
+                "tags": [
+                  "PII"
+                ]
+              },
+              {
+                "name": "cust_email",
+                "type": "string",
+                "tags": [
+                  "PII"
+                ]
+              },
+              {
+                "name": "cust_first_name",
+                "type": "string",
+                "tags": [
+                  "PII"
+                ]
+              },
+              {
+                "name": "cust_last_name",
+                "type": "string",
+                "tags": [
+                  "PII"
+                ]
+              },
+              {
+                "name": "phone_number",
+                "type": "string",
+                "tags": [
+                  "PII"
+                ]
+              },
+              {
+                "name": "billing_address_line1",
+                "type": "string",
+                "tags": [
+                  "PII"
+                ]
+              },
+              {
+                "name": "billing_address_line2",
+                "type": "string",
+                "tags": [
+                  "PII"
+                ]
+              },
+              {
+                "name": "billing_country",
+                "type": "string",
+                "tags": [
+                  "PII"
+                ]
+              },
+              {
+                "name": "billing_region",
+                "type": "string",
+                "tags": [
+                  "PII"
+                ]
+              },
+              {
+                "name": "billing_town_city",
+                "type": "string",
+                "tags": [
+                  "PII"
+                ]
+              },
+              {
+                "name": "billing_zipcode",
+                "type": "number",
+                "tags": [
+                  "PII"
+                ]
+              },
+              {
+                "name": "order_total",
+                "type": "number",
+                "tags": [
+                  "PII"
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "id": "order-details-profile",
+          "type": "pipeline",
+          "position": {
+            "x": 390,
+            "y": 30
+          },
+          "data": {
+            "kind": "profile",
+            "label": "Order details profile",
+            "description": "Reusable bounded profile from DataHub MCP: 40 fields, 12 PII classifications, no raw rows.",
+            "owner": "SAM LAB Agent",
+            "status": "healthy",
+            "schema": [],
+            "rule": "field_count=40; pii_count=12; raw_rows=false"
+          }
+        },
+        {
+          "id": "order-details-impact",
+          "type": "pipeline",
+          "position": {
+            "x": 390,
+            "y": 230
+          },
+          "data": {
+            "kind": "impact",
+            "label": "18 downstream datasets",
+            "description": "Replayable impact snapshot across Snowflake, dbt, Looker, Power BI and Tableau.",
+            "owner": "Data Governance",
+            "status": "healthy",
+            "schema": [],
+            "rule": "risk=high; affected_datasets=18; protect PII before analytics output"
+          }
+        },
+        {
+          "id": "mask-order-pii",
+          "type": "pipeline",
+          "position": {
+            "x": 740,
+            "y": 230
+          },
+          "data": {
+            "kind": "transform",
+            "label": "Mask order PII",
+            "description": "Tokenize identifiers and redact direct contact fields before analytics consumption.",
+            "owner": "Analytics Engineering",
+            "status": "healthy",
+            "schema": [],
+            "rule": "tokenize(customer_id); sha256(lower(cust_email)); redact(phone_number, billing_address_line1, billing_address_line2)"
+          }
+        },
+        {
+          "id": "review-order-pii",
+          "type": "pipeline",
+          "position": {
+            "x": 1090,
+            "y": 230
+          },
+          "data": {
+            "kind": "review",
+            "label": "Review PII contract",
+            "description": "A data steward approves the exact masking contract and downstream impact.",
+            "owner": "Data Governance",
+            "status": "healthy",
+            "schema": [],
+            "rule": "approve exact transform, impact evidence and governed writeback"
+          }
+        },
+        {
+          "id": "analytics-output",
+          "type": "pipeline",
+          "position": {
+            "x": 1440,
+            "y": 230
+          },
+          "data": {
+            "kind": "output",
+            "label": "Protected analytics",
+            "description": "Analytics output receives only the reviewed protected path.",
+            "owner": "Analytics",
+            "status": "healthy",
+            "schema": []
+          }
+        }
+      ],
+      "edges": [
+        {
+          "id": "source-impact",
+          "source": "order-details-source",
+          "target": "order-details-impact",
+          "type": "elastic"
+        },
+        {
+          "id": "impact-mask",
+          "source": "order-details-impact",
+          "target": "mask-order-pii",
+          "type": "elastic"
+        },
+        {
+          "id": "mask-review",
+          "source": "mask-order-pii",
+          "target": "review-order-pii",
+          "type": "elastic"
+        },
+        {
+          "id": "review-output",
+          "source": "review-order-pii",
+          "target": "analytics-output",
+          "type": "elastic"
+        }
+      ],
+      "evidence": [
+        {
+          "tool": "get_entities",
+          "urn": "urn:li:dataset:(urn:li:dataPlatform:dbt,b2fd91.ORDER_ENTRY_DB.analytics.order_details,PROD)",
+          "capturedAt": "2026-07-23T00:00:00.000Z",
+          "expiresAt": "2026-07-24T00:00:00.000Z",
+          "status": "ok",
+          "summary": "Resolved the real dbt order_details dataset.",
+          "cached": false,
+          "stale": false
+        },
+        {
+          "tool": "list_schema_fields",
+          "urn": "urn:li:dataset:(urn:li:dataPlatform:dbt,b2fd91.ORDER_ENTRY_DB.analytics.order_details,PROD)",
+          "capturedAt": "2026-07-23T00:00:00.000Z",
+          "expiresAt": "2026-07-24T00:00:00.000Z",
+          "status": "ok",
+          "summary": "Observed 40 fields and 12 PII classifications without raw rows.",
+          "cached": false,
+          "stale": false
+        },
+        {
+          "tool": "get_lineage",
+          "urn": "urn:li:dataset:(urn:li:dataPlatform:dbt,b2fd91.ORDER_ENTRY_DB.analytics.order_details,PROD)",
+          "capturedAt": "2026-07-23T00:00:00.000Z",
+          "expiresAt": "2026-07-24T00:00:00.000Z",
+          "status": "ok",
+          "summary": "Observed 18 downstream datasets across five platforms.",
+          "cached": false,
+          "stale": false
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,17 @@
+node_modules
+dist
+dist-electron
+release
+apps/bootstrap-installer/src-tauri/target/
+apps/bootstrap-installer/src-tauri/gen/
+apps/bootstrap-installer/src-tauri/icons/*
+!apps/bootstrap-installer/src-tauri/icons/icon.icns
+!apps/bootstrap-installer/src-tauri/icons/icon.ico
+apps/bootstrap-installer/ui/styles.css
+apps/bootstrap-installer/macos/
+.DS_Store
+*.log
+*.local
+.env
+.env.*
+!.env.example

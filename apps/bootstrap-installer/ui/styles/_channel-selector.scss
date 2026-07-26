@@ -1,0 +1,43 @@
+.channel-selector {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 13px;
+  min-width: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: 11px;
+  background: rgba(15, 23, 42, .48);
+}
+.channel-selector > div {
+  display: flex;
+  gap: 3px;
+  padding: 3px;
+  border: 1px solid rgba(100, 116, 139, .38);
+  border-radius: 9px;
+  background: rgba(15, 23, 42, .7);
+}
+.channel-selector button {
+  min-width: 72px;
+  padding: 7px 10px;
+  color: var(--text-muted);
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  font-size: 10px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.channel-selector button[aria-pressed="true"] {
+  color: #eef2ff;
+  background: linear-gradient(135deg, rgba(79, 70, 229, .72), rgba(124, 58, 237, .58));
+  box-shadow: 0 4px 14px rgba(49, 46, 129, .28);
+}
+.channel-selector button:disabled { cursor: wait; opacity: .58; }
+.channel-selector small {
+  overflow: hidden;
+  color: var(--text-muted);
+  font: 9px/1.4 var(--mono);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

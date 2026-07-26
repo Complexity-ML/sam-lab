@@ -1,0 +1,47 @@
+{
+  "proposal": "Protect PII before CRM activation",
+  "status": "awaiting-human-review",
+  "datahubContext": {
+    "source": "urn:li:dataset:(urn:li:dataPlatform:snowflake,analytics.customers_360,PROD)",
+    "classifiedField": "email",
+    "classification": "PII",
+    "downstreamOutput": "activation.crm_customers"
+  },
+  "toolTrace": [
+    "get_entities",
+    "list_schema_fields",
+    "get_lineage"
+  ],
+  "evidenceProvenance": [
+    {
+      "tool": "get_entities",
+      "urn": "urn:li:dataset:(urn:li:dataPlatform:snowflake,analytics.customers_360,PROD)",
+      "capturedAt": "2026-07-22T20:00:00.000Z",
+      "expiresAt": "2026-07-22T20:05:00.000Z",
+      "status": "ok",
+      "summary": "Owner Growth Data; domain Customer; classifications PII",
+      "cached": false,
+      "stale": false
+    },
+    {
+      "tool": "list_schema_fields",
+      "urn": "urn:li:dataset:(urn:li:dataPlatform:snowflake,analytics.customers_360,PROD)",
+      "capturedAt": "2026-07-22T20:00:00.000Z",
+      "expiresAt": "2026-07-22T20:02:00.000Z",
+      "status": "ok",
+      "summary": "email string classified PII; customer_id string",
+      "cached": false,
+      "stale": false
+    }
+  ],
+  "diff": {
+    "remove": ["normalize-customer -> consent-validation"],
+    "addCard": ["Mask email"],
+    "add": [
+      "normalize-customer -> mask-email",
+      "mask-email -> consent-validation"
+    ]
+  },
+  "generatedRule": "sha256(lower(trim(email))) AS email_hash; drop email",
+  "writeback": "Save the approved masking decision as a DataHub context document and append the pipeline lineage."
+}

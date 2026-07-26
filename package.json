@@ -1,0 +1,122 @@
+{
+  "name": "sam-lab",
+  "productName": "SAM LAB",
+  "description": "A human-reviewed visual Software Asset Management analysis studio.",
+  "author": "SAM LAB",
+  "license": "Apache-2.0",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "main": "dist-electron/main.js",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "build:electron": "tsc -p tsconfig.electron.json",
+    "electron:dev": "npm run build:electron && concurrently -k \"vite --host 127.0.0.1\" \"wait-on tcp:5173 && VITE_DEV_SERVER_URL=http://127.0.0.1:5173 electron .\"",
+    "electron:start": "npm run build && npm run build:electron && electron .",
+    "package:mac:dir": "npm run build && npm run build:electron && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac dir --publish never -c.forceCodeSigning=false -c.mac.identity=- -c.mac.hardenedRuntime=false -c.mac.notarize=false",
+    "package:mac:release": "npm run build && npm run build:electron && electron-builder --mac dmg zip --x64 --arm64 --publish always",
+    "package:win:dir": "npm run build && npm run build:electron && electron-builder --win dir --publish never -c.forceCodeSigning=false",
+    "package:win:ci": "npm run build && npm run build:electron && electron-builder --win nsis zip --x64 --publish never -c.forceCodeSigning=false",
+    "setup:dev": "npm run dev --prefix apps/bootstrap-installer",
+    "setup:build:mac": "npm run build:mac --prefix apps/bootstrap-installer",
+    "setup:build:win": "npm run build:win --prefix apps/bootstrap-installer",
+    "verify:electron-load": "npm run build:electron && node scripts/verify-electron-load.mjs",
+    "verify:datahub-oss": "node scripts/verify-datahub-oss.mjs --query=email",
+    "verify:datahub-agent": "npm run build:electron && node scripts/generate-datahub-agent-proposal.mjs",
+    "approve:datahub-agent": "npm run build:electron && node scripts/approve-datahub-agent-proposal.mjs",
+    "test": "vitest run && npm run verify:electron-load",
+    "preview": "vite preview"
+  },
+  "build": {
+    "appId": "ai.labo.sam",
+    "productName": "SAM LAB",
+    "artifactName": "SAM-LAB-${version}-${arch}.${ext}",
+    "directories": {
+      "output": "release"
+    },
+    "asar": true,
+    "asarUnpack": [
+      "node_modules/@openai/codex-*/vendor/**/*"
+    ],
+    "forceCodeSigning": true,
+    "generateUpdatesFilesForAllChannels": true,
+    "files": [
+      "dist/**/*",
+      "dist-electron/**/*",
+      "package.json"
+    ],
+    "mac": {
+      "category": "public.app-category.business",
+      "hardenedRuntime": true,
+      "icon": "build/icon-1024.png",
+      "notarize": true,
+      "target": [
+        {
+          "target": "dmg",
+          "arch": ["x64", "arm64"]
+        },
+        {
+          "target": "zip",
+          "arch": ["x64", "arm64"]
+        }
+      ]
+    },
+    "win": {
+      "icon": "build/icon-1024.png",
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64", "arm64"]
+        },
+        {
+          "target": "zip",
+          "arch": ["x64", "arm64"]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": "always",
+      "createStartMenuShortcut": true,
+      "shortcutName": "SAM LAB"
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "Complexity-ML",
+        "repo": "sam-lab",
+        "channel": "latest",
+        "releaseType": "release"
+      }
+    ]
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "@openai/codex": "^0.144.6",
+    "@xyflow/react": "^12.11.2",
+    "electron-updater": "^6.8.5",
+    "lucide-react": "^0.468.0",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
+  },
+  "devDependencies": {
+    "@testing-library/react": "^16.3.2",
+    "@testing-library/user-event": "^14.6.1",
+    "@types/node": "^24.10.0",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "@vitejs/plugin-react": "^5.1.0",
+    "concurrently": "^9.2.0",
+    "electron": "^39.2.0",
+    "electron-builder": "^26.0.0",
+    "jsdom": "^29.1.1",
+    "sass": "^1.94.0",
+    "typescript": "~5.9.3",
+    "vite": "^7.2.0",
+    "vitest": "^4.0.0",
+    "wait-on": "^9.0.0"
+  }
+}

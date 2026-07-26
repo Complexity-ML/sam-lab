@@ -1,0 +1,168 @@
+name: Build SAM LAB Setup installers
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: sam-lab-setup-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  package:
+    name: Package Setup · ${{ matrix.platform }} ${{ matrix.arch }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: macOS
+            arch: arm64
+            runner: macos-15
+            rust_target: aarch64-apple-darwin
+          - platform: macOS
+            arch: x64
+            runner: macos-15-intel
+            rust_target: x86_64-apple-darwin
+          - platform: Windows
+            arch: x64
+            runner: windows-2022
+            rust_target: x86_64-pc-windows-msvc
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: apps/bootstrap-installer/package-lock.json
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.rust_target }}
+
+      - name: Install Setup dependencies
+        run: npm ci --prefix apps/bootstrap-installer
+
+      - name: Verify synchronized versions
+        shell: bash
+        run: |
+          ROOT_VERSION="$(node -p "require('./package.json').version")"
+          SETUP_VERSION="$(node -p "require('./apps/bootstrap-installer/package.json').version")"
+          test "$ROOT_VERSION" = "$SETUP_VERSION"
+          grep -q "^version = \"$ROOT_VERSION\"$" apps/bootstrap-installer/src-tauri/Cargo.toml
+
+      - name: Verify Setup application icons
+        shell: bash
+        run: |
+          test -s apps/bootstrap-installer/src-tauri/icons/icon.png
+          test -s apps/bootstrap-installer/src-tauri/icons/icon.icns
+          test -s apps/bootstrap-installer/src-tauri/icons/icon.ico
+
+      - name: Build macOS Setup DMG
+        if: matrix.platform == 'macOS'
+        shell: bash
+        run: |
+          npm run build:ui --prefix apps/bootstrap-installer
+          for attempt in 1 2 3; do
+            echo "DMG bundle attempt ${attempt}/3 for ${{ matrix.rust_target }}"
+            if npm run tauri --prefix apps/bootstrap-installer -- build --verbose --bundles dmg --target ${{ matrix.rust_target }}; then
+              break
+            fi
+            if [ "$attempt" -eq 3 ]; then
+              echo "::error::Tauri DMG bundling failed after 3 attempts"
+              exit 1
+            fi
+            echo "::warning::Tauri bundle_dmg.sh failed intermittently; retrying with the compiled Rust artifacts"
+            sleep $((attempt * 5))
+          done
+
+      - name: Build Windows Setup installer
+        if: matrix.platform == 'Windows'
+        run: npm run build:win --prefix apps/bootstrap-installer
+
+      - name: Prepare macOS Setup artifacts
+        if: matrix.platform == 'macOS'
+        shell: bash
+        run: |
+          TARGET="apps/bootstrap-installer/src-tauri/target/${{ matrix.rust_target }}/release"
+          DMG="$(find "$TARGET/bundle/dmg" -type f -name '*.dmg' -print -quit)"
+          HELPER="$TARGET/sam-lab-setup"
+          test -n "$DMG"
+          test -x "$HELPER"
+          mkdir -p release-assets
+          cp "$DMG" "release-assets/SAM-LAB-Setup-${{ matrix.arch }}.dmg"
+          cp "$HELPER" "release-assets/SAM-LAB-Setup-${{ matrix.arch }}-helper"
+          shasum -a 256 "release-assets/SAM-LAB-Setup-${{ matrix.arch }}-helper" > "release-assets/SAM-LAB-Setup-${{ matrix.arch }}-helper.sha256"
+
+      - name: Prepare Windows Setup artifacts
+        if: matrix.platform == 'Windows'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path release-assets | Out-Null
+          $installer = Get-ChildItem apps/bootstrap-installer/src-tauri/target/release/bundle/nsis/*.exe | Select-Object -First 1
+          $helper = 'apps/bootstrap-installer/src-tauri/target/release/sam-lab-setup.exe'
+          if (-not $installer) { throw 'SAM LAB Setup NSIS installer was not produced' }
+          if (-not (Test-Path $helper)) { throw 'SAM LAB Setup helper was not produced' }
+          Copy-Item $installer.FullName release-assets/SAM-LAB-Setup-x64.exe
+          Copy-Item $helper release-assets/SAM-LAB-Setup-x64-helper.exe
+          $hash = (Get-FileHash release-assets/SAM-LAB-Setup-x64-helper.exe -Algorithm SHA256).Hash.ToLower()
+          "$hash  SAM-LAB-Setup-x64-helper.exe" | Set-Content -NoNewline release-assets/SAM-LAB-Setup-x64-helper.exe.sha256
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sam-lab-setup-${{ matrix.platform }}-${{ matrix.arch }}
+          path: release-assets/*
+          if-no-files-found: error
+          retention-days: 30
+
+  publish:
+    name: Publish Setup pre-release
+    needs: package
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: sam-lab-setup-*
+          path: release-assets
+          merge-multiple: true
+
+      - name: Publish source-first Setup
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          VERSION="$(node -p "require('./package.json').version")"
+          TAG="setup-v${VERSION}-preview.${GITHUB_RUN_NUMBER}"
+          NOTES="$(mktemp)"
+          cat > "$NOTES" <<'EOF'
+          Unsigned and unnotarized SAM LAB Setup preview.
+
+          SAM LAB Setup is a lightweight source-first installer. Choose Stable (the latest published SAM LAB application release) or Main (the newest commit), then Setup downloads a checksum-verified managed Node.js runtime once, builds Electron natively on the current computer, replaces the application atomically and keeps one rollback copy.
+
+          Available installers:
+          - Apple Silicon: `SAM-LAB-Setup-arm64.dmg`
+          - Intel Mac: `SAM-LAB-Setup-x64.dmg`
+          - Windows x64: `SAM-LAB-Setup-x64.exe`
+
+          Platform security warnings may require explicit user approval because this preview is not notarized or certificate-signed.
+          EOF
+          if ! gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "SAM LAB Setup ${VERSION} preview ${GITHUB_RUN_NUMBER}" --notes-file "$NOTES" --draft --prerelease
+          fi
+          gh release upload "$TAG" release-assets/* --repo "$GITHUB_REPOSITORY" --clobber
+          gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --draft=false --prerelease
+
+          ALIAS_TAG="setup-latest"
+          git tag --force "$ALIAS_TAG" "$GITHUB_SHA"
+          git push origin "refs/tags/$ALIAS_TAG" --force
+          if ! gh release view "$ALIAS_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release create "$ALIAS_TAG" --repo "$GITHUB_REPOSITORY" --title "Download SAM LAB Setup" --notes-file "$NOTES" --prerelease
+          fi
+          gh release upload "$ALIAS_TAG" release-assets/* --repo "$GITHUB_REPOSITORY" --clobber

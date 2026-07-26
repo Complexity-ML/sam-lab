@@ -1,0 +1,148 @@
+{
+  "schemaVersion": 1,
+  "provenance": "deterministic-acceptance-fixture",
+  "note": "This locally reviewed fixture proves graph materialization and atomic approval. It is not represented as a provider response.",
+  "sourceUrn": "urn:li:dataset:(urn:li:dataPlatform:dbt,b2fd91.ORDER_ENTRY_DB.analytics.order_details,PROD)",
+  "proposal": {
+    "title": "Protect order-details PII before analytics consumption",
+    "summary": "Add reusable profiling and impact evidence, then gate a deterministic masking step with Human Review.",
+    "rationale": "DataHub reports 12 PII fields and downstream propagation across 18 datasets. The direct source-to-output path must be replaced by a reviewed protected path.",
+    "requires_human_review": true,
+    "confidence": 0.96,
+    "writeback": "After approval, record the masking decision and affected lineage in DataHub.",
+    "evidence": [
+      "get_entities resolved the order_details dbt dataset.",
+      "list_schema_fields found 40 fields and 12 PII classifications.",
+      "get_lineage observed 18 downstream datasets across five platforms."
+    ],
+    "actions": [
+      {
+        "type": "add_card",
+        "node_id": "order-details-profile",
+        "kind": "profile",
+        "label": "Order details profile",
+        "description": "Reusable bounded profile: 40 fields, 12 PII fields, no raw rows, evidence captured from DataHub MCP.",
+        "owner": "SAM LAB Agent",
+        "rule": "field_count=40; pii_count=12; raw_rows=false; freshness=2026-07-22T23:53:52.289Z",
+        "source": null,
+        "target": null,
+        "source_handle": null,
+        "reason": "Retain compact schema and classification memory instead of repeatedly reconstructing the dataset."
+      },
+      {
+        "type": "add_card",
+        "node_id": "order-details-impact",
+        "kind": "impact",
+        "label": "Order details impact radius",
+        "description": "Atomic replayable impact snapshot covering 18 downstream datasets across Snowflake, dbt, Looker, Power BI and Tableau.",
+        "owner": "Data Governance",
+        "rule": "risk=high; affected_datasets=18; action=protect PII before analytics output",
+        "source": null,
+        "target": null,
+        "source_handle": null,
+        "reason": "Make the downstream risk explicit and replayable from the captured lineage evidence."
+      },
+      {
+        "type": "add_card",
+        "node_id": "mask-order-pii",
+        "kind": "transform",
+        "label": "Mask order PII",
+        "description": "Tokenize customer identifiers and redact direct contact fields before downstream analytics consumption.",
+        "owner": "Analytics Engineering",
+        "rule": "tokenize(customer_id); sha256(lower(cust_email)); redact(phone_number); redact(billing_address_line1, billing_address_line2)",
+        "source": null,
+        "target": null,
+        "source_handle": null,
+        "reason": "Remove the unprotected sensitive-data path detected by atomic validation."
+      },
+      {
+        "type": "add_card",
+        "node_id": "review-order-pii",
+        "kind": "review",
+        "label": "Review order PII contract",
+        "description": "A data steward must approve the exact masking contract before the analytics output can continue.",
+        "owner": "Data Governance",
+        "rule": "approve exact transform, downstream impact and DataHub writeback",
+        "source": null,
+        "target": null,
+        "source_handle": null,
+        "reason": "The proposal changes sensitive fields and downstream contracts."
+      },
+      {
+        "type": "remove_edge",
+        "node_id": "e-source-output",
+        "kind": null,
+        "label": null,
+        "description": null,
+        "owner": null,
+        "rule": null,
+        "source": null,
+        "target": null,
+        "source_handle": null,
+        "reason": "Remove the direct unprotected path."
+      },
+      {
+        "type": "add_edge",
+        "node_id": null,
+        "kind": null,
+        "label": null,
+        "description": null,
+        "owner": null,
+        "rule": null,
+        "source": "order-details-source",
+        "target": "order-details-impact",
+        "source_handle": null,
+        "reason": "Start with the captured impact boundary."
+      },
+      {
+        "type": "add_edge",
+        "node_id": null,
+        "kind": null,
+        "label": null,
+        "description": null,
+        "owner": null,
+        "rule": null,
+        "source": "order-details-impact",
+        "target": "mask-order-pii",
+        "source_handle": null,
+        "reason": "Apply the correction supported by the impact evidence."
+      },
+      {
+        "type": "add_edge",
+        "node_id": null,
+        "kind": null,
+        "label": null,
+        "description": null,
+        "owner": null,
+        "rule": null,
+        "source": "mask-order-pii",
+        "target": "review-order-pii",
+        "source_handle": null,
+        "reason": "Require review after defining the exact protection contract."
+      },
+      {
+        "type": "add_edge",
+        "node_id": null,
+        "kind": null,
+        "label": null,
+        "description": null,
+        "owner": null,
+        "rule": null,
+        "source": "review-order-pii",
+        "target": "analytics-output",
+        "source_handle": null,
+        "reason": "Allow the output only after explicit approval."
+      }
+    ]
+  },
+  "review": {
+    "decision": "approved",
+    "reviewer": "SAM LAB integration verifier",
+    "reason": "The candidate removes the direct PII path and preserves a connected, review-gated lineage."
+  },
+  "expectedAtomicValidation": {
+    "blockingIssues": 0,
+    "runWithoutReview": "waiting",
+    "runAfterReview": "completed"
+  }
+}

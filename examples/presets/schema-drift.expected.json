@@ -1,0 +1,23 @@
+{
+  "presetId": "schema-drift",
+  "synthetic": true,
+  "expectedValidation": [
+    {
+      "id": "schema-contract-type-drift-contract-customer_age",
+      "severity": "error",
+      "title": "Breaking type drift on customer_age"
+    }
+  ],
+  "expectedAgentDiff": {
+    "summary": "Trace the training-data change to age_bucket and churn_prediction_v3, restore the numeric feature contract, then retrain safely.",
+    "actions": [
+      { "type": "remove_edge", "edgeId": "e-drift-contract" },
+      { "type": "update_card", "id": "impact-lineage", "rule": "customer_features critical; age_bucket blocked; churn_prediction_v3 high risk" },
+      { "type": "add_card", "kind": "transform", "id": "restore-customer-age", "rule": "cast(customer_age as number)" },
+      { "type": "add_card", "kind": "decision", "id": "ml-mitigation", "rule": "repair age_bucket; validate features; retrain churn_prediction_v3" },
+      { "type": "add_edge", "source": "impact-lineage", "target": "restore-customer-age" },
+      { "type": "add_edge", "source": "restore-customer-age", "target": "ml-mitigation" },
+      { "type": "add_edge", "source": "ml-mitigation", "target": "drift-contract" }
+    ]
+  }
+}

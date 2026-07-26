@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "sourceUrn": "urn:li:dataset:(urn:li:dataPlatform:dbt,b2fd91.ORDER_ENTRY_DB.analytics.order_details,PROD)",
+  "initial": {
+    "blockingIssues": 1,
+    "issues": [
+      {
+        "id": "sensitive-unprotected-order-details-source-analytics-output",
+        "atom": "sensitive-data-path",
+        "severity": "error",
+        "title": "Sensitive data reaches an output unprotected"
+      }
+    ]
+  },
+  "candidateAfterReviewedDiff": {
+    "blockingIssues": 0,
+    "directUnprotectedEdgePresent": false,
+    "profileCardPresent": true,
+    "impactCardPresent": true,
+    "protectionCardPresent": true,
+    "humanReviewCardPresent": true
+  },
+  "atomicReplay": {
+    "beforeHumanDecision": "waiting",
+    "afterApproval": "completed",
+    "afterRejection": "failed"
+  },
+  "verifiedBy": "src/domain/datahub-oss-e2e.test.ts"
+}

@@ -1,0 +1,61 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-07-22T23:53:52.289Z",
+  "source": {
+    "transport": "stdio",
+    "server": "mcp-server-datahub",
+    "gmsUrl": "http://localhost:8080",
+    "query": "email",
+    "urn": "urn:li:dataset:(urn:li:dataPlatform:dbt,b2fd91.ORDER_ENTRY_DB.analytics.order_details,PROD)"
+  },
+  "safety": {
+    "mutationToolsEnabled": false,
+    "rawRowsCaptured": false,
+    "credentialsCaptured": false,
+    "maxResponseBytes": 2000000
+  },
+  "requiredTools": {
+    "get_entities": "ok",
+    "list_schema_fields": "ok",
+    "get_lineage": "ok"
+  },
+  "findings": {
+    "fieldCount": 40,
+    "piiFields": [
+      "billing_address_line1",
+      "billing_address_line2",
+      "billing_country",
+      "billing_region",
+      "billing_town_city",
+      "billing_zipcode",
+      "cust_email",
+      "cust_first_name",
+      "cust_last_name",
+      "customer_id",
+      "order_total",
+      "phone_number"
+    ],
+    "downstreamCount": 18,
+    "downstreamPlatforms": ["snowflake", "dbt", "looker", "powerbi", "tableau"]
+  },
+  "evidence": [
+    {
+      "tool": "get_entities",
+      "status": "ok",
+      "capturedAt": "2026-07-22T23:53:50.649Z",
+      "summary": "Resolved the order_details dbt dataset and its catalog metadata."
+    },
+    {
+      "tool": "list_schema_fields",
+      "status": "ok",
+      "capturedAt": "2026-07-22T23:53:51.153Z",
+      "summary": "Read 40 schema fields; 12 carry the PII glossary term."
+    },
+    {
+      "tool": "get_lineage",
+      "status": "ok",
+      "capturedAt": "2026-07-22T23:53:51.757Z",
+      "summary": "Observed 18 downstream datasets across five platforms; the complete MCP response also reported charts and dashboards."
+    }
+  ]
+}

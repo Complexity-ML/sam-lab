@@ -1,0 +1,111 @@
+name: Signed macOS releases
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      channel:
+        description: Release an opt-in preview from the selected main commit
+        required: true
+        default: main
+        type: choice
+        options: [main]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: macos-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  package:
+    name: Sign, notarize and publish (${{ github.ref_type == 'tag' && 'stable' || inputs.channel || 'main' }})
+    runs-on: macos-15
+    timeout-minutes: 45
+    env:
+      CSC_LINK: ${{ secrets.MACOS_CERTIFICATE_P12 }}
+      CSC_KEY_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+      APPLE_API_KEY_CONTENT: ${{ secrets.APPLE_API_KEY_P8 }}
+      APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+      APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Require Apple signing and notarization credentials
+        run: |
+          test -n "$CSC_LINK"
+          test -n "$CSC_KEY_PASSWORD"
+          test -n "$APPLE_API_KEY_CONTENT"
+          test -n "$APPLE_API_KEY_ID"
+          test -n "$APPLE_API_ISSUER"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Select immutable version and channel
+        id: release
+        env:
+          REQUESTED_CHANNEL: ${{ inputs.channel }}
+        run: |
+          if [[ "$GITHUB_REF_TYPE" == "tag" ]]; then
+            CHANNEL=stable
+            RELEASE_TYPE=release
+            VERSION="${GITHUB_REF_NAME#v}"
+          else
+            CHANNEL=main
+            RELEASE_TYPE=prerelease
+            BASE_VERSION="$(node -p "require('./package.json').version.split('-')[0]")"
+            VERSION="${BASE_VERSION}-main.${GITHUB_RUN_NUMBER}"
+          fi
+          npm version "$VERSION" --no-git-tag-version
+          echo "channel=$CHANNEL" >> "$GITHUB_OUTPUT"
+          echo "release_type=$RELEASE_TYPE" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Materialize App Store Connect API key
+        run: |
+          KEY_PATH="$RUNNER_TEMP/AuthKey_${APPLE_API_KEY_ID}.p8"
+          printf '%s' "$APPLE_API_KEY_CONTENT" > "$KEY_PATH"
+          chmod 600 "$KEY_PATH"
+          echo "APPLE_API_KEY=$KEY_PATH" >> "$GITHUB_ENV"
+
+      - name: Test
+        run: npm test
+
+      - name: Build, sign, notarize and publish x64 + arm64
+        run: npm run package:mac:release -- --config.publish.channel=${{ steps.release.outputs.channel == 'stable' && 'latest' || 'main' }} --config.publish.releaseType=${{ steps.release.outputs.release_type }}
+
+      - name: Verify every packaged application
+        run: |
+          APPS_FOUND=0
+          while IFS= read -r -d '' APP_BUNDLE; do
+            APPS_FOUND=$((APPS_FOUND + 1))
+            /usr/bin/codesign --verify --deep --strict --verbose=2 "$APP_BUNDLE"
+            /usr/sbin/spctl --assess --type execute --verbose=4 "$APP_BUNDLE"
+            /usr/bin/xcrun stapler validate "$APP_BUNDLE"
+          done < <(find release -type d -name 'SAM LAB.app' -print0)
+          test "$APPS_FOUND" -ge 2
+          test "$(find release -maxdepth 1 -name '*.dmg' | wc -l | tr -d ' ')" -ge 2
+          test "$(find release -maxdepth 1 -name '*.zip' | wc -l | tr -d ' ')" -ge 2
+
+      - name: Preserve published artifacts and update manifests
+        uses: actions/upload-artifact@v4
+        with:
+          name: sam-lab-macos-${{ steps.release.outputs.channel }}-${{ steps.release.outputs.version }}
+          path: |
+            release/*.dmg
+            release/*.zip
+            release/*-mac.yml
+            release/*.blockmap
+          if-no-files-found: error
+          retention-days: 30

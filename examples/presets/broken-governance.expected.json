@@ -1,0 +1,18 @@
+{
+  "presetId": "broken-governance",
+  "synthetic": true,
+  "expectedValidation": [
+    { "id": "missing-owner-governance-source", "severity": "error", "title": "DataHub ownership is missing" },
+    { "id": "quality-failing-governance-source", "severity": "error", "title": "DataHub quality checks are failing" }
+  ],
+  "expectedAgentDiff": {
+    "summary": "Keep publication blocked, assign accountable ownership and add a quality validation gate.",
+    "actions": [
+      { "type": "update_card", "id": "governance-source", "owner": "Data Steward" },
+      { "type": "add_card", "kind": "validation", "id": "quality-recovery-gate", "rule": "quality_status = healthy" },
+      { "type": "remove_edge", "edgeId": "e-governance-output" },
+      { "type": "add_edge", "source": "governance-source", "target": "quality-recovery-gate" },
+      { "type": "add_edge", "source": "quality-recovery-gate", "target": "governance-output" }
+    ]
+  }
+}

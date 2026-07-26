@@ -1,0 +1,39 @@
+{
+  "schema": "sam-lab.pipeline",
+  "schemaVersion": 1,
+  "exportedAt": "2026-07-22T20:00:00.000Z",
+  "projectTitle": "Customer governance sample",
+  "graph": {
+    "nodes": [
+      {
+        "id": "customers-source",
+        "type": "pipeline",
+        "position": { "x": 72, "y": 72 },
+        "data": {
+          "kind": "source",
+          "label": "Customers 360",
+          "description": "Governed customer dataset",
+          "owner": "Growth Data",
+          "status": "healthy",
+          "schema": [{ "name": "customer_id", "type": "string" }],
+          "datahubUrn": "urn:li:dataset:(urn:li:dataPlatform:snowflake,analytics.customers_360,PROD)"
+        }
+      },
+      {
+        "id": "governed-output",
+        "type": "pipeline",
+        "position": { "x": 408, "y": 72 },
+        "data": {
+          "kind": "output",
+          "label": "Governed output",
+          "description": "Validated sharing target",
+          "owner": "Data Governance",
+          "status": "healthy",
+          "schema": []
+        }
+      }
+    ],
+    "edges": [{ "id": "source-output", "source": "customers-source", "target": "governed-output", "type": "elastic" }]
+  },
+  "versions": []
+}

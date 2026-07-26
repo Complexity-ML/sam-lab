@@ -1,0 +1,69 @@
+name: Windows desktop smoke
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/windows-smoke.yml'
+      - 'build/**'
+      - 'electron/**'
+      - 'package.json'
+      - 'package-lock.json'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-smoke-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  package:
+    name: Build unsigned x64 smoke artifacts
+    runs-on: windows-2022
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          # electron-builder's Windows icon helper currently crashes after
+          # producing the ICO under Node 24 (0xC0000005 / 3221225477).
+          node-version: 22
+          cache: npm
+
+      - name: Install Windows dependencies
+        run: npm ci
+
+      - name: Test renderer and Electron boundaries
+        run: npm test
+
+      - name: Build NSIS and ZIP smoke artifacts
+        run: npm run package:win:ci
+
+      - name: Verify Windows artifacts and executable metadata
+        shell: pwsh
+        run: |
+          $installer = Get-ChildItem release -Filter 'SAM-LAB-*-x64.exe'
+          $archive = Get-ChildItem release -Filter 'SAM-LAB-*-x64.zip'
+          $application = Get-ChildItem release -Recurse -Filter 'SAM LAB.exe'
+          $codex = Get-ChildItem 'release/win-unpacked/resources/app.asar.unpacked/node_modules/@openai/codex-win32-x64' -Recurse -Filter 'codex.exe'
+          if ($installer.Count -ne 1) { throw "Expected one x64 NSIS installer, found $($installer.Count)" }
+          if ($archive.Count -ne 1) { throw "Expected one x64 ZIP archive, found $($archive.Count)" }
+          if ($application.Count -lt 1) { throw 'Packaged SAM LAB executable was not found' }
+          if ($codex.Count -ne 1) { throw "Expected one bundled Windows Codex executable, found $($codex.Count)" }
+          $info = [System.Diagnostics.FileVersionInfo]::GetVersionInfo($application[0].FullName)
+          if ($info.ProductName -ne 'SAM LAB') { throw "Unexpected ProductName: $($info.ProductName)" }
+          if ($info.FileDescription -ne 'SAM LAB') { throw "Unexpected FileDescription: $($info.FileDescription)" }
+
+      - name: Preserve Windows smoke artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: sam-lab-windows-x64-smoke
+          path: |
+            release/*.exe
+            release/*.zip
+            release/latest.yml
+            release/*.blockmap
+          if-no-files-found: error
+          retention-days: 14

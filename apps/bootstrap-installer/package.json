@@ -1,0 +1,16 @@
+{
+  "name": "sam-lab-setup",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "tauri": "tauri",
+    "build:ui": "sass ui/styles.scss ui/styles.css --style=compressed --no-source-map",
+    "build:mac": "npm run build:ui && tauri build --bundles dmg",
+    "build:win": "npm run build:ui && tauri build --bundles nsis",
+    "dev": "npm run build:ui && tauri dev"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.8.5",
+    "sass": "^1.101.0"
+  }
+}
