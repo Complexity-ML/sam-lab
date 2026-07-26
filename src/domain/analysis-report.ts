@@ -1,7 +1,7 @@
 import type { PipelineNode } from './pipeline'
 import type { RiskImpactItemKind, RiskImpactOverview } from './risk-impact'
 import { parseRiskAssessmentRule, type RiskSeverity } from './risk-assessment'
-import { isSoftwareAssetGraph } from './sam-asset'
+import { isSoftwareAssetCheckpoint, isSoftwareAssetGraph, isSoftwareAssetNode, isSoftwareAssetText } from './sam-asset'
 
 export interface AnalysisReportRisk {
   id: string
@@ -32,9 +32,11 @@ export interface AnalysisReport {
   summary: string
   inspectedAssets: number
   totalAssets: number
-  aggregateProfiles: number
-  coverageGaps: number
+  softwareAssets: number
+  profiledSoftwareAssets: number
+  softwareEvidenceGaps: number
   risks: AnalysisReportRisk[]
+  contextRisks: AnalysisReportRisk[]
   evidence: AnalysisReportEvidence[]
   decisionFacts: { label: string; value: string }[]
   limitations: string[]
@@ -58,8 +60,11 @@ function firstMatch(text: string, pattern: RegExp) {
 
 function softwareDecisionFacts(nodes: PipelineNode[]) {
   if (!isSoftwareAssetGraph(nodes)) return []
-  const text = nodes.map((node) => `${node.data.label}. ${node.data.description}. ${node.data.rule ?? ''}`).join(' ')
-  const source = nodes.find((node) => node.data.kind === 'source')
+  const text = nodes
+    .filter((node) => isSoftwareAssetText(`${node.data.label} ${node.data.description} ${node.data.rule ?? ''} ${node.data.datahubUrn ?? ''} ${node.data.datahubDomain ?? ''} ${(node.data.datahubTags ?? []).join(' ')} ${node.data.schema.map((field) => field.name).join(' ')}`))
+    .map((node) => `${node.data.label}. ${node.data.description}. ${node.data.rule ?? ''}`)
+    .join(' ')
+  const source = nodes.find((node) => node.data.kind === 'source' && isSoftwareAssetNode(node))
   const purchased = firstMatch(text, /\b([\d,.]+)\s+purchased(?:\s+seats?)?/i)
   const assigned = firstMatch(text, /\b([\d,.]+)\s+assigned(?:\s+seats?)?/i)
   const active = firstMatch(text, /\b([\d,.]+)\s+active(?:\s+seats?)?/i)
@@ -91,15 +96,19 @@ export function buildAnalysisReport(nodes: PipelineNode[], overview?: RiskImpact
     .sort((left, right) => right.inspected - left.inspected || right.total - left.total)[0]
   const inspectedAssets = exploration?.inspected ?? sources.length
   const totalAssets = exploration?.total ?? sources.length
-  const aggregateProfiles = exploration?.dataAudited
-    ?? exploration?.datasets.filter((dataset) => dataset.dataAuditStatus === 'complete').length
-    ?? Math.max(
-      nodes.filter((node) => node.data.kind === 'profile' && node.data.profile?.aggregateAudit.status === 'complete').length,
-      softwareAssetReport && sources.some((node) => node.data.schema.some((field) => /\b(?:purchased|assigned|active|usage|utilization|cost|spend|renewal|entitlement)\b/i.test(field.name.replaceAll('_', ' ')))) ? 1 : 0,
+  const softwareCheckpoints = exploration?.datasets.filter(isSoftwareAssetCheckpoint) ?? []
+  const softwareSources = sources.filter(isSoftwareAssetNode)
+  const softwareAssets = softwareCheckpoints.length || softwareSources.length
+  const profiledSoftwareAssets = softwareCheckpoints.length
+    ? softwareCheckpoints.filter((dataset) => dataset.dataAuditStatus === 'complete').length
+    : Math.max(
+      nodes.filter((node) => node.data.kind === 'profile' && isSoftwareAssetNode(node) && node.data.profile?.aggregateAudit.status === 'complete').length,
+      softwareAssetReport && softwareSources.some((node) => node.data.schema.some((field) => /\b(?:purchased|assigned|active|usage|utilization|cost|spend|renewal|entitlement)\b/i.test(field.name.replaceAll('_', ' ')))) ? 1 : 0,
     )
-  const coverageGaps = exploration?.dataAuditCoverageGaps
-    ?? exploration?.datasets.filter((dataset) => dataset.dataAuditStatus === 'coverage_gap').length
-    ?? nodes.filter((node) => node.data.kind === 'profile' && node.data.profile?.aggregateAudit.status === 'coverage_gap').length
+  const softwareEvidenceGaps = softwareCheckpoints.filter((dataset) =>
+    dataset.status === 'unavailable'
+    || dataset.dataAuditStatus !== 'complete'
+    || dataset.issues.some((issue) => issue === 'owner missing' || issue === 'tags missing')).length
 
   const riskItems = overview?.items ?? nodes
     .filter((node) => node.data.kind === 'risk')
@@ -118,7 +127,7 @@ export function buildAnalysisReport(nodes: PipelineNode[], overview?: RiskImpact
         affectedAssets: parsed.affectedAssets,
       }
     })
-  const risks = riskItems
+  const allRisks = riskItems
     .map((item): AnalysisReportRisk => {
       const node = nodes.find((candidate) => candidate.id === item.nodeId)
       const parsed = node?.data.kind === 'risk' ? parseRiskAssessmentRule(node.data.rule) : undefined
@@ -136,7 +145,7 @@ export function buildAnalysisReport(nodes: PipelineNode[], overview?: RiskImpact
         kind: item.kind,
         severity: item.severity,
         confidence: parsed?.confidence,
-        evidence: item.evidence,
+        evidence: item.evidence ? humanizeAnalysisValue(item.evidence.replaceAll(':', ' · ')) : undefined,
         affectedAssets: item.affectedAssets,
         sensitiveSignals: Number.isFinite(sensitiveSignals) ? sensitiveSignals : undefined,
         scope: parsed?.scope || undefined,
@@ -144,19 +153,27 @@ export function buildAnalysisReport(nodes: PipelineNode[], overview?: RiskImpact
       }
     })
     .sort((left, right) => severityRank[right.severity] - severityRank[left.severity] || (left.kind === 'risk' ? -1 : 1))
+  const isSamMaterialFinding = (risk: AnalysisReportRisk) => {
+    if (risk.domain === 'privacy') return false
+    const node = nodes.find((candidate) => candidate.id === risk.nodeId)
+    return Boolean(node && isSoftwareAssetNode(node))
+      || isSoftwareAssetText(`${risk.title} ${risk.detail} ${risk.scope ?? ''} ${risk.action}`)
+  }
+  const risks = allRisks.filter(isSamMaterialFinding)
+  const contextRisks = allRisks.filter((risk) => !isSamMaterialFinding(risk))
   const primaryRisk = risks.find((risk) => risk.kind === 'risk') ?? risks[0]
 
-  const sourceScope = sources.map((node) => node.data.label).slice(0, 3).join(', ')
+  const sourceScope = softwareSources.map((node) => node.data.label).slice(0, 3).join(', ')
   const riskScope = primaryRisk?.scope
-  const profileScope = nodes.find((node) => node.data.kind === 'profile')?.data.label.replace(/\s+profile$/i, '')
-  const scopeBase = sourceScope || riskScope || profileScope || 'Current workbench'
+  const profileScope = nodes.find((node) => node.data.kind === 'profile' && isSoftwareAssetNode(node))?.data.label.replace(/\s+profile$/i, '')
+  const scopeBase = sourceScope || riskScope || profileScope || 'Connected catalog'
   const scope = softwareAssetReport
     ? `${scopeBase} software asset analysis`
-    : primaryRisk ? `${scopeBase} ${humanizeAnalysisValue(primaryRisk.domain)} analysis` : `${scopeBase} analysis`
+    : 'Software asset evidence not established'
 
   const evidenceKinds = new Set(['profile', 'analysis', 'impact', 'validation', 'output'])
   const evidence = nodes
-    .filter((node) => evidenceKinds.has(node.data.kind))
+    .filter((node) => evidenceKinds.has(node.data.kind) && isSoftwareAssetText(`${node.data.label} ${node.data.description} ${node.data.rule ?? ''} ${node.data.datahubUrn ?? ''}`))
     .map((node): AnalysisReportEvidence => ({
       nodeId: node.id,
       kind: humanizeAnalysisValue(node.data.kind),
@@ -168,10 +185,12 @@ export function buildAnalysisReport(nodes: PipelineNode[], overview?: RiskImpact
     }))
 
   const limitations = [
-    ...(coverageGaps > 0 ? [`${coverageGaps} ${softwareAssetReport ? 'catalog software asset' : 'catalog asset'}${coverageGaps === 1 ? '' : 's'} lack${coverageGaps === 1 ? 's' : ''} an aggregate value profile. No ${softwareAssetReport ? 'license optimization or compliance conclusion' : 'value-level anomaly'} is asserted for that uncovered evidence.`] : []),
+    ...(!softwareAssetReport ? ['No qualified software inventory, license, subscription, entitlement, contract, utilization, cost or renewal evidence is present. No license, compliance or optimization decision is asserted.'] : []),
+    ...(softwareEvidenceGaps > 0 ? [`${softwareEvidenceGaps} qualified software asset${softwareEvidenceGaps === 1 ? '' : 's'} lack complete ownership, classification or aggregate license evidence. No optimization or compliance conclusion is asserted for that uncovered SAM evidence.`] : []),
     ...nodes
-      .filter((node) => node.data.kind === 'profile' && node.data.profile?.aggregateAudit.status !== 'complete')
-      .map((node) => `${node.data.label} contains schema metadata only; aggregate row, null, uniqueness and distribution evidence is ${humanizeAnalysisValue(node.data.profile?.aggregateAudit.status ?? 'unavailable')}.`),
+      .filter((node) => node.data.kind === 'profile' && isSoftwareAssetNode(node) && node.data.profile?.aggregateAudit.status !== 'complete')
+      .map((node) => `${node.data.label} contains software-asset metadata only; aggregate assignment, utilization and cost evidence is ${humanizeAnalysisValue(node.data.profile?.aggregateAudit.status ?? 'unavailable')}.`),
+    ...(contextRisks.length ? [`${contextRisks.length} data-governance or non-SAM finding${contextRisks.length === 1 ? ' is' : 's are'} shown separately as context and excluded from the license decision.`] : []),
   ].filter((value, index, all) => all.indexOf(value) === index)
 
   const severityLabel = primaryRisk ? primaryRisk.severity.charAt(0).toUpperCase() + primaryRisk.severity.slice(1) : ''
@@ -189,20 +208,25 @@ export function buildAnalysisReport(nodes: PipelineNode[], overview?: RiskImpact
         !softwareAssetReport && primaryRisk.sensitiveSignals !== undefined
           ? `${scopeBase} contains ${primaryRisk.sensitiveSignals} sensitive field or tag signal${primaryRisk.sensitiveSignals === 1 ? '' : 's'}.`
           : `${scopeBase} has a ${severityLabel} ${softwareAssetReport ? 'software asset' : humanizeAnalysisValue(primaryRisk.domain)} risk.`,
-        `The ${softwareAssetReport ? 'decision' : humanizeAnalysisValue(primaryRisk.domain) + ' risk'} is rated ${severityLabel}${primaryRisk.confidence !== undefined ? ` with ${Math.round(primaryRisk.confidence * 100)}% confidence` : ''}${primaryRisk.affectedAssets !== undefined ? ` and covers ${primaryRisk.affectedAssets} ${softwareAssetReport ? 'licenses or affected records' : `downstream asset${primaryRisk.affectedAssets === 1 ? '' : 's'}`}` : ''}.`,
-        aggregateProfiles === 0
-          ? `Aggregate evidence is unavailable; therefore, no ${softwareAssetReport ? 'license optimization or compliance conclusion' : 'value-level anomaly'} is claimed.`
-          : coverageGaps > 0
-            ? `${aggregateProfiles} aggregate profile${aggregateProfiles === 1 ? ' is' : 's are'} available, while ${coverageGaps} catalog asset${coverageGaps === 1 ? '' : 's'} remain uncovered for value-level analysis.`
-            : `${aggregateProfiles} aggregate profile${aggregateProfiles === 1 ? '' : 's'} provide value-level evidence.`,
+        `The decision is rated ${severityLabel}${primaryRisk.confidence !== undefined ? ` with ${Math.round(primaryRisk.confidence * 100)}% confidence` : ''}${primaryRisk.affectedAssets !== undefined ? ` and covers ${primaryRisk.affectedAssets} affected software record${primaryRisk.affectedAssets === 1 ? '' : 's'}` : ''}.`,
+        softwareAssets > 0 && profiledSoftwareAssets === 0
+          ? 'Aggregate assignment, utilization or cost evidence is unavailable; therefore, no license optimization or compliance conclusion is claimed.'
+          : softwareEvidenceGaps > 0
+            ? `${profiledSoftwareAssets}/${softwareAssets} qualified software assets have aggregate evidence; ${softwareEvidenceGaps} still have ownership, classification or evidence gaps.`
+            : softwareAssets > 0 ? `${profiledSoftwareAssets}/${softwareAssets} qualified software assets have aggregate evidence.` : '',
         /human review|review|verify|verification/i.test(primaryRisk.action)
           ? 'Human review and post-mitigation verification are required.'
           : `Recommended next action: ${primaryRisk.action}.`,
-        totalAssets > 0 ? `${softwareAssetReport ? 'Software catalog' : 'Catalog'} coverage: ${inspectedAssets}/${totalAssets} assets checked.` : '',
+        totalAssets > 0 ? `Catalog scan: ${inspectedAssets}/${totalAssets} assets checked; ${softwareAssets} qualified as software-asset evidence.` : '',
       ]
     : [
-        'No Risk Assessment result is present in the current graph.',
-        totalAssets > 0 ? `Catalog coverage: ${inspectedAssets}/${totalAssets} assets checked, with ${aggregateProfiles} aggregate profiles and ${coverageGaps} profile gaps.` : 'No connected-catalog coverage checkpoint is present.',
+        seatSummary,
+        opportunitySummary,
+        softwareAssetReport
+          ? 'No material SAM risk is supported by the current software evidence.'
+          : 'No qualified software inventory, license, subscription, entitlement, contract, utilization, cost or renewal evidence is established, so SAM makes no license decision.',
+        contextRisks.length ? `${contextRisks.length} data-governance or non-SAM finding${contextRisks.length === 1 ? ' is' : 's are'} retained separately as context.` : '',
+        totalAssets > 0 ? `Catalog scan: ${inspectedAssets}/${totalAssets} assets checked; ${softwareAssets} qualified as software-asset evidence.` : 'No connected-catalog coverage checkpoint is present.',
       ]
 
   return {
@@ -210,9 +234,11 @@ export function buildAnalysisReport(nodes: PipelineNode[], overview?: RiskImpact
     summary: summaryParts.filter(Boolean).join(' '),
     inspectedAssets,
     totalAssets,
-    aggregateProfiles,
-    coverageGaps,
+    softwareAssets,
+    profiledSoftwareAssets,
+    softwareEvidenceGaps,
     risks,
+    contextRisks,
     evidence,
     decisionFacts,
     limitations,

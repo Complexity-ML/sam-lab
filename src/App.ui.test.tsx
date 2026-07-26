@@ -534,7 +534,7 @@ describe('visual pipeline workspace regressions', () => {
     expect(screen.getByRole('button', { name: 'Close live logs' })).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Close incident reports' })).toBeTruthy()
     expect(screen.getByRole('region', { name: 'Analysis results content' }).classList.contains('panel-scroll-area')).toBe(true)
-    expect(screen.getByText('No materialized risk')).toBeTruthy()
+    expect(screen.getByText('No material SAM finding')).toBeTruthy()
     await user.click(screen.getByRole('button', { name: 'Close analysis results' }))
     await user.click(screen.getByRole('button', { name: 'Close incident reports' }))
 

@@ -27,10 +27,10 @@ export function AnalysisResultsView({ nodes, onClose, onOpenProposal, onSelectCa
       </section>
 
       <section className="analysis-results-overview">
-        <div><strong>{report.risks.length}</strong><small>Risk signals</small></div>
+        <div><strong>{report.risks.length}</strong><small>SAM findings</small></div>
         <div><strong>{report.inspectedAssets}/{report.totalAssets}</strong><small>Catalog checked</small></div>
-        <div><strong>{report.aggregateProfiles}</strong><small>Aggregate profiles</small></div>
-        <div><strong>{report.coverageGaps}</strong><small>Profile gaps</small></div>
+        <div><strong>{report.softwareAssets}</strong><small>SAM assets</small></div>
+        <div><strong>{report.softwareEvidenceGaps}</strong><small>Evidence gaps</small></div>
       </section>
 
       {report.decisionFacts.length > 0 && <>
@@ -42,27 +42,39 @@ export function AnalysisResultsView({ nodes, onClose, onOpenProposal, onSelectCa
 
       {proposal && <button className="report-proposal" onClick={onOpenProposal} type="button"><Sparkles size={16} /><span><small>PROPOSED SOLUTION</small><strong>{proposal.title}</strong><p>{proposal.summary}</p></span></button>}
 
-      <div className="reports-heading"><strong>Material findings</strong><small>{report.risks.length} signal{report.risks.length === 1 ? '' : 's'}</small></div>
+      <div className="reports-heading"><strong>Material SAM findings</strong><small>{report.risks.length} finding{report.risks.length === 1 ? '' : 's'}</small></div>
       {report.risks.length ? <div className="analysis-result-risks">{report.risks.map((risk) => <button aria-label={`Inspect result ${risk.title}`} className={`severity-${risk.severity}`} key={risk.id} onClick={() => onSelectCard(risk.nodeId)} type="button">
         <ShieldAlert size={16} />
         <span><small>{risk.domain} · {risk.kind.replace('-', ' ')} · {risk.severity}</small><strong>{risk.title}</strong><p>{risk.detail}</p><dl>
           {risk.confidence !== undefined && <div><dt>Confidence</dt><dd>{Math.round(risk.confidence * 100)}%</dd></div>}
           {risk.evidence && <div><dt>Evidence</dt><dd>{risk.evidence}</dd></div>}
-          {risk.affectedAssets !== undefined && <div><dt>{risk.kind === 'risk' ? 'Downstream affected' : 'Affected assets'}</dt><dd>{risk.affectedAssets}</dd></div>}
+          {risk.affectedAssets !== undefined && <div><dt>Affected software records</dt><dd>{risk.affectedAssets}</dd></div>}
         </dl><em>Recommended action: {risk.action}</em></span>
-      </button>)}</div> : <div className="reports-clear"><CheckCircle2 size={18} /><span><strong>No materialized risk</strong><small>The current graph contains no Risk Assessment result.</small></span></div>}
+      </button>)}</div> : <div className="reports-clear"><CheckCircle2 size={18} /><span><strong>No material SAM finding</strong><small>The current graph contains no supported license, cost, entitlement, renewal or software-compliance finding.</small></span></div>}
 
-      <div className="reports-heading"><strong>Analysis trail</strong><small>{report.evidence.length} result card{report.evidence.length === 1 ? '' : 's'}</small></div>
+      {report.contextRisks.length > 0 && <>
+        <div className="reports-heading"><strong>Data governance context</strong><small>excluded from license decision · {report.contextRisks.length}</small></div>
+        <div className="analysis-result-risks analysis-context-risks">{report.contextRisks.map((risk) => <button aria-label={`Inspect context ${risk.title}`} className={`severity-${risk.severity}`} key={risk.id} onClick={() => onSelectCard(risk.nodeId)} type="button">
+          <ShieldAlert size={16} />
+          <span><small>{risk.domain} · context · {risk.severity}</small><strong>{risk.title}</strong><p>{risk.detail}</p><dl>
+            {risk.confidence !== undefined && <div><dt>Confidence</dt><dd>{Math.round(risk.confidence * 100)}%</dd></div>}
+            {risk.evidence && <div><dt>Evidence</dt><dd>{risk.evidence}</dd></div>}
+            {risk.affectedAssets !== undefined && <div><dt>{risk.domain === 'privacy' ? 'Downstream assets' : 'Affected records'}</dt><dd>{risk.affectedAssets}</dd></div>}
+          </dl><em>Context action: {risk.action}</em></span>
+        </button>)}</div>
+      </>}
+
+      <div className="reports-heading"><strong>SAM analysis trail</strong><small>{report.evidence.length} result card{report.evidence.length === 1 ? '' : 's'}</small></div>
       {report.evidence.length ? <div className="analysis-result-evidence">{report.evidence.map((item) => <button aria-label={`Inspect evidence ${item.title}`} key={item.nodeId} onClick={() => onSelectCard(item.nodeId)} type="button">
         {item.kind === 'profile' ? <Database size={15} /> : <FileCheck2 size={15} />}
         <span><small>{item.label}</small><strong>{item.title}</strong><p>{item.detail}</p></span>
-      </button>)}</div> : <div className="reports-clear"><FileCheck2 size={18} /><span><strong>No analysis output yet</strong><small>Profile, Analysis, Impact, Validation and Output cards will be summarized here.</small></span></div>}
+      </button>)}</div> : <div className="reports-clear"><FileCheck2 size={18} /><span><strong>No SAM analysis output yet</strong><small>Only software inventory, license, contract, usage, cost and renewal evidence is summarized here.</small></span></div>}
 
       <section className={`analysis-limitations${report.limitations.length ? ' has-gaps' : ''}`}>
         <div><AlertTriangle size={15} /><strong>Coverage &amp; limitations</strong></div>
         {report.limitations.length
           ? <ul>{report.limitations.map((limitation) => <li key={limitation}>{limitation}</li>)}</ul>
-          : <p>No aggregate evidence coverage gap is recorded in the current graph.</p>}
+          : <p>No SAM evidence coverage gap is recorded in the current graph.</p>}
       </section>
 
     </PanelScrollArea>
