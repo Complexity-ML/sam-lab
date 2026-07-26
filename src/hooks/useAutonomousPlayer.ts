@@ -845,6 +845,7 @@ export function useAutonomousPlayer(options: AutonomousPlayerOptions) {
         })
         if (autonomousVersionId && projectTitle === 'Untitled pipeline') setProjectTitle(nextProposal.title.slice(0, 72))
         if (autonomousVersionId) {
+          if (nextProposal.addedNodes.length > 0) fitCommittedGraph()
           await window.dataLab.updateAgentProposalMemoryStatus(proposalGraphFingerprint, 'committed', autonomousVersionId).catch(() => undefined)
           atomicRepairState.current = undefined
           if (monitored) {

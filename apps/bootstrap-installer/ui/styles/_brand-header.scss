@@ -11,26 +11,33 @@
   flex: 0 0 auto;
   width: 42px;
   height: 42px;
-  border: 1px solid rgba(129, 140, 248, .55);
+  border: 1px solid rgba(251, 191, 36, .62);
   border-radius: 12px;
-  background: linear-gradient(145deg, rgba(99, 102, 241, .3), rgba(139, 92, 246, .22));
+  background: linear-gradient(145deg, rgba(245, 158, 11, .32), rgba(234, 88, 12, .24));
 }
 .brand-mark i {
   position: absolute;
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: #818cf8;
-  box-shadow: 0 0 14px rgba(129, 140, 248, .55);
+  left: 10px;
+  width: 21px;
+  height: 4px;
+  border-radius: 4px;
+  background: #fbbf24;
+  box-shadow: 0 0 14px rgba(249, 115, 22, .42);
 }
-.brand-mark i:nth-child(1) { left: 8px; top: 9px; }
-.brand-mark i:nth-child(2) { right: 8px; top: 9px; }
-.brand-mark i:nth-child(3) { left: 8px; bottom: 9px; }
-.brand-mark i:nth-child(4) { right: 8px; bottom: 9px; }
-.brand-mark::after {
-  content: "";
+.brand-mark i:nth-child(1) { top: 10px; }
+.brand-mark i:nth-child(2) { top: 19px; width: 16px; }
+.brand-mark i:nth-child(3) { top: 28px; width: 12px; }
+.brand-mark b {
   position: absolute;
-  inset: 11px;
-  border: 1px solid rgba(185, 172, 255, .8);
-  transform: rotate(45deg);
+  right: 5px;
+  bottom: 5px;
+  display: grid;
+  width: 15px;
+  height: 15px;
+  place-items: center;
+  color: #fff7ed;
+  border: 1px solid rgba(255, 255, 255, .74);
+  border-radius: 50%;
+  background: #c2410c;
+  font: 800 9px/1 sans-serif;
 }

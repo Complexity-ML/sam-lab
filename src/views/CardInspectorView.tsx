@@ -1,4 +1,4 @@
-import { AlertCircle, ArrowLeft, CheckCircle2, Focus, PanelRightClose, Sparkles } from 'lucide-react'
+import { AlertCircle, ArrowLeft, CheckCircle2, Focus, PanelRightClose } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { PanelHeader } from '../components/shared/PanelHeader'
 import { PanelScrollArea } from '../components/shared/PanelScrollArea'
@@ -21,7 +21,6 @@ interface CardInspectorViewProps {
   onInspectDataHubAsset(urn: string, force?: boolean): Promise<{ asset: DataHubAssetSummary }>
   onOpenDataHubSettings(): void
   onSearchDataHub(query: string): Promise<DataHubAssetSummary[]>
-  onAgentRework(): void
   onBack?(): void
   onClose(): void
   onFocusDiagram(nodeId: string): void
@@ -30,7 +29,7 @@ interface CardInspectorViewProps {
   returnLabel?: string
 }
 
-export function CardInspectorView({ dataHubConnected, errorCount, issues, onAgentRework, onBack, onBindDataHubSource, onClose, onFocusDiagram, onInspectDataHubAsset, onOpenDataHubSettings, onSearchDataHub, onSelectNode, onUpdate, returnLabel, selected, workbenchAssets }: CardInspectorViewProps) {
+export function CardInspectorView({ dataHubConnected, errorCount, issues, onBack, onBindDataHubSource, onClose, onFocusDiagram, onInspectDataHubAsset, onOpenDataHubSettings, onSearchDataHub, onSelectNode, onUpdate, returnLabel, selected, workbenchAssets }: CardInspectorViewProps) {
   const [lineageExpanded, setLineageExpanded] = useState(false)
   useEffect(() => setLineageExpanded(false), [selected?.id])
   const role = selected ? cardRoleContracts[selected.data.kind] : undefined
@@ -44,7 +43,6 @@ export function CardInspectorView({ dataHubConnected, errorCount, issues, onAgen
     </div>} eyebrow="INSPECT" title={selected ? cardLabels[selected.data.kind] : 'Pipeline'} />
     <PanelScrollArea className="inspector-panel-content" label="Inspector content">
       {selected ? <div className="inspector-form">
-      <section className="card-agent-workspace"><div><Sparkles size={15} /><span><strong>Agent workspace</strong><small>Analyze and rework this card from connected evidence.</small></span></div><button onClick={onAgentRework} type="button">Ask agent to rework</button></section>
       {selected.data.kind === 'diagram' && <section className="diagram-focus"><div><Focus size={15} /><span><strong>Incident workstream</strong><small>Frame the parallel incident branches merged by this diagram.</small></span></div><button onClick={() => onFocusDiagram(selected.id)} type="button">Focus subgraph</button></section>}
       {role && <section className="role-contract"><div><small>AGENT ROLE</small><strong>{role.role}</strong><p>{role.mission}</p></div><dl><div><dt>Starts when</dt><dd>{role.activation}</dd></div><div><dt>Done when</dt><dd>{role.completion}</dd></div><div><dt>Input</dt><dd>{role.input}</dd></div><div><dt>Output</dt><dd>{role.output}</dd></div><div><dt>Tools</dt><dd>{role.allowedTools.length ? role.allowedTools.join(' · ') : 'No external tools'}</dd></div></dl></section>}
       {risk && <section className={`risk-context severity-${risk.severity ?? 'unknown'}`}><h3>Evidence-backed risk context</h3><dl><div><dt>Domain</dt><dd>{risk.domain}</dd></div><div><dt>Type</dt><dd>{risk.riskType ?? 'Incomplete'}</dd></div><div><dt>Severity</dt><dd>{risk.severity ?? 'Incomplete'}</dd></div><div><dt>Confidence</dt><dd>{risk.confidence === undefined ? 'Incomplete' : `${Math.round(risk.confidence * 100)}%`}</dd></div><div><dt>Evidence</dt><dd>{risk.evidence ?? 'Incomplete'}</dd></div><div><dt>Affected assets</dt><dd>{risk.affectedAssets ?? 'Incomplete'}</dd></div>{risk.affectedModels !== undefined && <div><dt>Affected models</dt><dd>{risk.affectedModels}</dd></div>}<div><dt>Scope</dt><dd>{risk.scope || 'Incomplete'}</dd></div></dl><p>{risk.riskType === 'collection' ? 'Connector reliability issue only · no dataset anomaly is asserted.' : risk.action ? `Recommended action: ${risk.action}` : 'Recommended action is missing.'}</p></section>}

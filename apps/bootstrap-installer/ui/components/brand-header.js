@@ -5,7 +5,7 @@ export function createBrandHeader() {
     createElement('i'),
     createElement('i'),
     createElement('i'),
-    createElement('i'),
+    createElement('b', { text: '✓' }),
   ])
   const identity = createElement('div', { className: 'brand-header__identity' }, [
     createElement('span', { text: 'COMPLEXITY' }),

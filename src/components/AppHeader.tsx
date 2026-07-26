@@ -1,4 +1,4 @@
-import { Boxes, LoaderCircle, Pause, Play, Settings, Square } from 'lucide-react'
+import { LoaderCircle, PackageCheck, Pause, Play, Settings, Square } from 'lucide-react'
 import type { WorkspaceSaveState } from '../domain/workspace'
 import { useLanguage } from '../i18n'
 
@@ -20,7 +20,7 @@ interface AppHeaderProps {
 export function AppHeader({ agentBusy, cardCount, onOpenSettings, onPause, onPlay, onStop, playerState, projectTitle, reviewPending, saveState }: AppHeaderProps) {
   const { t } = useLanguage()
   return <header className="topbar">
-    <div className="brand"><span className="brand-mark"><Boxes size={18} /></span><div><strong>SAM LAB</strong><small>{t('appSubtitle')}</small></div></div>
+    <div className="brand"><span className="brand-mark"><PackageCheck size={18} /></span><div><strong>SAM LAB</strong><small>{t('appSubtitle')}</small></div></div>
     <div className="project-title"><span>{projectTitle}</span><small className={`header-save-state ${saveState}`}>{saveState === 'recovering' ? t('recoveryAvailable') : saveState === 'saved' ? t('saved') : `${t('unsaved')}${cardCount === 0 ? ` · ${t('emptyCanvas')}` : ''}`}</small></div>
     <div className="topbar-actions">
       <div aria-label="Autonomous agent player" className={`agent-player state-${playerState}`} role="group">

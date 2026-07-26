@@ -158,7 +158,12 @@ export function usePipelineInteractions(options: {
 
   const fitCommittedGraph = () => {
     window.requestAnimationFrame(() => {
-      void flowInstance.current?.fitView({ duration: 240, padding: 0.22 })
+      // React Flow measures newly committed cards on the frame after React
+      // paints them. Wait one additional frame so fitView sees the complete
+      // graph instead of centering the previous node set.
+      window.requestAnimationFrame(() => {
+        void flowInstance.current?.fitView({ duration: 240, padding: 0.22 })
+      })
     })
   }
 

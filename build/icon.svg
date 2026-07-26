@@ -1,26 +1,40 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
   <defs>
-    <linearGradient id="sam-lab-gradient" x1="128" y1="96" x2="896" y2="928" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#6366f1"/>
-      <stop offset="1" stop-color="#8b5cf6"/>
+    <linearGradient id="sam-lab-gradient" x1="150" y1="92" x2="888" y2="930" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#fbbf24"/>
+      <stop offset=".5" stop-color="#f97316"/>
+      <stop offset="1" stop-color="#c2410c"/>
     </linearGradient>
-    <radialGradient id="sam-lab-highlight" cx="0" cy="0" r="1" gradientTransform="translate(310 220) rotate(52) scale(720)">
-      <stop stop-color="#ffffff" stop-opacity=".24"/>
+    <radialGradient id="sam-lab-highlight" cx="0" cy="0" r="1" gradientTransform="translate(286 196) rotate(50) scale(760)">
+      <stop stop-color="#ffffff" stop-opacity=".34"/>
       <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
     </radialGradient>
+    <linearGradient id="sam-lab-panel" x1="292" y1="270" x2="736" y2="694" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#ffffff" stop-opacity=".28"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity=".12"/>
+    </linearGradient>
     <filter id="sam-lab-shadow" x="-20%" y="-20%" width="140%" height="150%">
-      <feDropShadow dx="0" dy="30" stdDeviation="34" flood-color="#312e81" flood-opacity=".28"/>
+      <feDropShadow dx="0" dy="30" stdDeviation="34" flood-color="#7c2d12" flood-opacity=".32"/>
     </filter>
   </defs>
+
   <rect x="88" y="70" width="848" height="848" rx="206" fill="url(#sam-lab-gradient)" filter="url(#sam-lab-shadow)"/>
   <rect x="88" y="70" width="848" height="848" rx="206" fill="url(#sam-lab-highlight)"/>
-  <rect x="105" y="87" width="814" height="814" rx="190" fill="none" stroke="#ffffff" stroke-opacity=".16" stroke-width="12"/>
-  <g transform="translate(176 158) scale(28)" fill="none" stroke="#ffffff" stroke-width="1.72" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M2.97 12.92A2 2 0 0 0 2 14.63v3.24a2 2 0 0 0 .97 1.71l3 1.8a2 2 0 0 0 2.06 0L12 19v-5.5l-5-3-4.03 2.42Z"/>
-    <path d="m7 16.5-4.74-2.85"/><path d="m7 16.5 5-3"/><path d="M7 16.5v5.17"/>
-    <path d="M12 13.5V19l3.97 2.38a2 2 0 0 0 2.06 0l3-1.8a2 2 0 0 0 .97-1.71v-3.24a2 2 0 0 0-.97-1.71L17 10.5l-5 3Z"/>
-    <path d="m17 16.5-5-3"/><path d="m17 16.5 4.74-2.85"/><path d="M17 16.5v5.17"/>
-    <path d="M7.97 4.42A2 2 0 0 0 7 6.13v4.37l5 3 5-3V6.13a2 2 0 0 0-.97-1.71l-3-1.8a2 2 0 0 0-2.06 0l-3 1.8Z"/>
-    <path d="M12 8 7.26 5.15"/><path d="m12 8 4.74-2.85"/><path d="M12 13.5V8"/>
+  <rect x="105" y="87" width="814" height="814" rx="190" fill="none" stroke="#ffffff" stroke-opacity=".2" stroke-width="12"/>
+
+  <g stroke="#ffffff" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="254" y="244" width="516" height="438" rx="76" fill="url(#sam-lab-panel)" stroke-opacity=".92" stroke-width="28"/>
+    <path d="M268 352h488" fill="none" stroke-opacity=".72" stroke-width="24"/>
+    <circle cx="324" cy="300" r="14" fill="#ffffff" stroke="none"/>
+    <circle cx="374" cy="300" r="14" fill="#ffffff" fill-opacity=".72" stroke="none"/>
+    <circle cx="424" cy="300" r="14" fill="#ffffff" fill-opacity=".48" stroke="none"/>
+
+    <rect x="314" y="410" width="78" height="78" rx="22" fill="#ffffff" fill-opacity=".92" stroke="none"/>
+    <path d="M434 438h218M434 474h152" fill="none" stroke-opacity=".88" stroke-width="25"/>
+    <rect x="314" y="526" width="78" height="78" rx="22" fill="#ffffff" fill-opacity=".64" stroke="none"/>
+    <path d="M434 554h170M434 590h106" fill="none" stroke-opacity=".72" stroke-width="25"/>
+
+    <circle cx="724" cy="704" r="126" fill="#9a3412" fill-opacity=".9" stroke-opacity=".96" stroke-width="24"/>
+    <path d="m662 704 40 42 82-90" fill="none" stroke-width="34"/>
   </g>
 </svg>
