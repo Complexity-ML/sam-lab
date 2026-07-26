@@ -1,6 +1,7 @@
 import type { Edge } from '@xyflow/react'
 import type { CatalogDatasetCheckpoint, PipelineNode } from './pipeline'
 import { parseRiskAssessmentRule, riskDomainFromText, type RiskDomain, type RiskSeverity } from './risk-assessment'
+import { isSoftwareAssetCheckpoint } from './sam-asset'
 
 export type RiskImpactItemKind = 'risk' | 'impact' | 'verification' | 'coverage-gap'
 
@@ -57,74 +58,42 @@ function riskCardCoversDataset(dataset: CatalogDatasetCheckpoint, nodes: Pipelin
 }
 
 function catalogRiskItems(node: PipelineNode, nodes: PipelineNode[]): RiskImpactItem[] {
-  const datasets = node.data.exploration?.datasets ?? []
+  const datasets = (node.data.exploration?.datasets ?? []).filter(isSoftwareAssetCheckpoint)
   const items = datasets.flatMap<RiskImpactItem>((dataset) => {
     if (dataset.status === 'unavailable') return []
     const affectedAssets = Math.max(1, 1 + dataset.upstreamCount + dataset.downstreamCount)
     const items: RiskImpactItem[] = []
-    if ((dataset.qualityStatus === 'failing' || dataset.issues.includes('quality failing')) && !riskCardCoversDataset(dataset, nodes, 'data')) {
+    if ((dataset.qualityStatus === 'failing' || dataset.issues.includes('quality failing')) && !riskCardCoversDataset(dataset, nodes, 'reliability')) {
       items.push({
         id: `catalog-quality-${dataset.urn}`,
         nodeId: node.id,
         kind: 'risk',
-        domain: 'data',
+        domain: 'reliability',
         severity: 'high',
-        title: `Data quality risk · ${dataset.name}`,
-        detail: 'The versioned catalog checkpoint reports a failing quality signal. This is dataset evidence, not a connector failure.',
-        action: 'Inspect this dataset deeply, trace its impact, then propose a bounded correction and fresh post-condition verification.',
+        title: `License evidence quality risk · ${dataset.name}`,
+        detail: 'The versioned software-asset checkpoint reports failing evidence quality. Cost, utilization or compliance decisions must wait for a fresh verified snapshot.',
+        action: 'Verify this software inventory source, then rerun the bounded license analysis before making a recommendation.',
         evidence: 'catalog_checkpoint:fresh',
         affectedAssets,
         sourceRef: dataset.urn,
       })
     }
-    if (!riskCardCoversDataset(dataset, nodes, 'data')) {
+    if (!riskCardCoversDataset(dataset, nodes, 'analytics')) {
       items.push(...(dataset.dataRiskSignals ?? []).map((signal) => ({
         id: `catalog-profile-${dataset.urn}-${signal.id}`,
         nodeId: node.id,
         kind: 'risk' as const,
-        domain: 'data' as const,
+        domain: 'analytics' as const,
         severity: signal.severity,
-        title: `${signal.kind.replaceAll('_', ' ')} · ${dataset.name}${signal.field ? ` · ${signal.field}` : ''}`,
-        detail: signal.summary,
+        title: `License evidence anomaly · ${dataset.name}${signal.field ? ` · ${signal.field}` : ''}`,
+        detail: `${signal.summary} This may change seat-utilization, spend or entitlement conclusions.`,
         action: signal.kind === 'duplicate_drift'
-          ? 'Verify the expected key contract, inspect downstream impact, then propose deduplication or quarantine without mutating source data.'
-          : 'Inspect this dataset deeply, trace downstream impact, propose a bounded graph correction, then verify against a fresh statistical profile.',
+          ? 'Verify the product, seat and entitlement key contract before calculating duplicate assignments or reclaim candidates.'
+          : 'Refresh the bounded aggregate evidence, recalculate license utilization and cost impact, then submit the recommendation for review.',
         evidence: 'dataset_profile:two_version_aggregate',
         affectedAssets,
         sourceRef: dataset.urn,
       })))
-    }
-    if ((dataset.downstreamMlCount ?? 0) > 0 && (dataset.dataRiskSignals?.length ?? 0) > 0 && !riskCardCoversDataset(dataset, nodes, 'ml')) {
-      const refs = dataset.downstreamMlRefs ?? []
-      items.push(...(dataset.dataRiskSignals ?? []).map((signal) => ({
-        id: `catalog-ml-${dataset.urn}-${signal.id}`,
-        nodeId: node.id,
-        kind: 'risk' as const,
-        domain: 'ml' as const,
-        severity: signal.severity,
-        title: `ML dependency risk · ${dataset.name}${signal.field ? ` · ${signal.field}` : ''}`,
-        detail: `${signal.summary} Versioned lineage proves ${dataset.downstreamMlCount} downstream ML feature, model or deployment dependency/dependencies${refs.length ? `: ${refs.map((ref) => ref.name).join(', ')}` : ''}.`,
-        action: 'Assess training and serving impact, quarantine the affected evidence path when necessary, and require a fresh profile before retraining or promotion.',
-        evidence: 'dataset_profile:two_version_aggregate+lineage:versioned',
-        affectedAssets,
-        affectedModels: dataset.downstreamMlCount,
-        sourceRef: dataset.urn,
-      })))
-    }
-    if ((dataset.sensitiveSignalCount ?? 0) > 0 && !riskCardCoversDataset(dataset, nodes, 'privacy')) {
-      items.push({
-        id: `catalog-sensitive-${dataset.urn}`,
-        nodeId: node.id,
-        kind: 'verification',
-        domain: 'privacy',
-        severity: 'medium',
-        title: `Sensitive-data exposure to verify · ${dataset.name}`,
-        detail: `${dataset.sensitiveSignalCount} sensitive field or classification signal(s) are present, but downstream exposure has not been proven.`,
-        action: 'Inspect only this dataset and add an evidence-backed privacy Risk Assessment when its lineage proves exposure.',
-        evidence: 'catalog_checkpoint:fresh',
-        affectedAssets,
-        sourceRef: dataset.urn,
-      })
     }
     return items
   })
@@ -132,14 +101,14 @@ function catalogRiskItems(node: PipelineNode, nodes: PipelineNode[]): RiskImpact
     {
       key: 'owners',
       issue: 'owner missing',
-      title: 'Ownership coverage incomplete',
-      action: 'Assign or confirm owners in DataHub, then reassess only the affected datasets.',
+      title: 'Software ownership coverage incomplete',
+      action: 'Assign or confirm the product, contract or budget owner, then reassess only the affected software assets.',
     },
     {
       key: 'classifications',
       issue: 'tags missing',
-      title: 'Classification coverage incomplete',
-      action: 'Complete catalog tags or glossary classifications in DataHub, then reassess only sensitive or downstream-critical datasets.',
+      title: 'Software inventory classification incomplete',
+      action: 'Classify the product, license, contract and usage source before calculating compliance or optimization decisions.',
     },
   ] as const
   for (const group of governanceGroups) {
@@ -153,7 +122,7 @@ function catalogRiskItems(node: PipelineNode, nodes: PipelineNode[]): RiskImpact
       domain: 'governance',
       severity: 'medium',
       title: group.title,
-      detail: `${affected.length} dataset(s) are missing ${group.key === 'owners' ? 'an owner' : 'tags or classifications'}${examples.length ? `: ${examples.join(', ')}${affected.length > examples.length ? ` and ${affected.length - examples.length} more` : ''}` : ''}. This is catalog coverage, not a confirmed data risk.`,
+      detail: `${affected.length} software asset source(s) are missing ${group.key === 'owners' ? 'a product, contract or budget owner' : 'software inventory classifications'}${examples.length ? `: ${examples.join(', ')}${affected.length > examples.length ? ` and ${affected.length - examples.length} more` : ''}` : ''}. This is SAM coverage, not a confirmed license risk.`,
       action: group.action,
       evidence: 'catalog_checkpoint:incomplete_governance',
       affectedAssets: affected.length,

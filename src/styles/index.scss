@@ -488,8 +488,8 @@ button { color: inherit; }
 .risk-overview > div { display: flex; flex-direction: column; gap: 3px; padding: 10px; border: 1px solid var(--line); border-radius: 9px; background: var(--surface); }
 .risk-overview strong { font-size: 15px; }
 .risk-overview small { color: var(--muted); font-size: 7px; }
-.risk-domain-selector { display: flex; gap: 6px; overflow-x: auto; padding: 1px 1px 5px; scrollbar-width: thin; }
-.risk-domain-selector button { flex: 0 0 auto; padding: 6px 8px; color: var(--muted); border: 1px solid var(--line); border-radius: 8px; background: var(--panel); font-size: 7px; font-weight: 750; cursor: pointer; }
+.risk-domain-selector { display: flex; min-width: 0; flex-wrap: wrap; gap: 6px; overflow: hidden; padding: 1px; }
+.risk-domain-selector button { min-width: 0; flex: 1 1 72px; padding: 6px 8px; color: var(--muted); border: 1px solid var(--line); border-radius: 8px; background: var(--panel); font-size: 7px; font-weight: 750; white-space: nowrap; cursor: pointer; }
 .risk-domain-selector button.is-active { color: #b91c1c; border-color: color-mix(in srgb, #ef4444 48%, var(--line)); background: color-mix(in srgb, #fee2e2 48%, var(--panel)); }
 .risk-panel-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .risk-panel-heading strong { font-size: 9px; }

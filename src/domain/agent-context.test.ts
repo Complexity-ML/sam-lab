@@ -118,18 +118,18 @@ describe('incremental agent version context', () => {
           phase: 'checkpoint' as const,
           checkpointAt: '2026-07-24T18:00:00.000Z',
           datasets: [
-            { urn: 'urn:orders', name: 'orders', status: 'healthy' as const, fieldCount: 20, ownerCount: 1, upstreamCount: 0, downstreamCount: 2, issues: [], fingerprint: 'orders', capturedAt: '2026-07-24T18:00:00.000Z', expiresAt: '2026-07-24T18:05:00.000Z' },
-            { urn: 'urn:order-details', name: 'order_details', status: 'warning' as const, fieldCount: 55, ownerCount: 0, upstreamCount: 0, downstreamCount: 0, issues: ['owner missing'], fingerprint: 'details', capturedAt: '2026-07-24T18:00:00.000Z', expiresAt: '2026-07-24T18:05:00.000Z' },
+            { urn: 'urn:software-products', name: 'software_products', status: 'healthy' as const, fieldCount: 20, ownerCount: 1, upstreamCount: 0, downstreamCount: 2, issues: [], fingerprint: 'products', capturedAt: '2026-07-24T18:00:00.000Z', expiresAt: '2026-07-24T18:05:00.000Z' },
+            { urn: 'urn:license-utilization', name: 'license_utilization', status: 'warning' as const, fieldCount: 55, ownerCount: 0, upstreamCount: 0, downstreamCount: 0, issues: ['owner missing'], fingerprint: 'licenses', capturedAt: '2026-07-24T18:00:00.000Z', expiresAt: '2026-07-24T18:05:00.000Z' },
           ],
         },
       },
     }
     const rejectedSource = {
       ...customerActivationNodes[0]!,
-      id: 'source-order-details',
-      data: { ...customerActivationNodes[0]!.data, kind: 'source' as const, datahubUrn: 'urn:order-details' },
+      id: 'source-license-utilization',
+      data: { ...customerActivationNodes[0]!.data, kind: 'source' as const, label: 'license_utilization', datahubUrn: 'urn:license-utilization' },
     }
-    const rejected = createPipelineVersion([rejectedSource], [], 'Rejected order details branch', 'agent', [])
+    const rejected = createPipelineVersion([rejectedSource], [], 'Rejected license utilization branch', 'agent', [])
     rejected.status = 'rejected'
 
     const request = buildPipelineAgentRequest({
@@ -147,8 +147,8 @@ describe('incremental agent version context', () => {
       terminal: true,
       inspected: 2,
       total: 2,
-      recommendedSourceUrn: 'urn:order-details',
-      recommendedSourceName: 'order_details',
+      recommendedSourceUrn: 'urn:license-utilization',
+      recommendedSourceName: 'license_utilization',
     })
     expect(request.catalogCheckpoints[0]?.datasets).toHaveLength(2)
     expect(request.catalogCheckpoints[0]?.restartPolicy).toContain('Do not restart discovery')

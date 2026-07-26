@@ -1,5 +1,6 @@
 import type { DataHubAssetSummary, DataHubEvidence } from './datahub'
 import type { CatalogDatasetCheckpoint, CatalogExplorationProgress } from './pipeline'
+import { isSoftwareAssetCheckpoint, softwareAssetPriority } from './sam-asset'
 
 export interface CatalogInspection {
   asset: DataHubAssetSummary
@@ -138,14 +139,15 @@ export function shouldCallAgentForCatalog(
 
 export function rankCatalogCandidateUrns(progress: CatalogExplorationProgress) {
   const score = (checkpoint: CatalogDatasetCheckpoint) =>
-    (checkpoint.status === 'healthy' ? 1_000 : checkpoint.status === 'warning' ? 100 : 0)
+    softwareAssetPriority(checkpoint) * 1_000_000
+    + (checkpoint.status === 'healthy' ? 1_000 : checkpoint.status === 'warning' ? 100 : 0)
     + checkpoint.ownerCount * 10
     + checkpoint.fieldCount
     + checkpoint.upstreamCount
     + checkpoint.downstreamCount
 
   return progress.datasets
-    .filter((checkpoint) => checkpoint.status !== 'unavailable')
+    .filter((checkpoint) => checkpoint.status !== 'unavailable' && isSoftwareAssetCheckpoint(checkpoint))
     .sort((left, right) => score(right) - score(left) || left.urn.localeCompare(right.urn))
     .map((checkpoint) => checkpoint.urn)
 }
@@ -176,8 +178,8 @@ export function rankCatalogRiskCandidateUrns(
     .map((checkpoint) => catalogDatasetFamilyKey(checkpoint.name))
     .filter(Boolean))
   const score = (checkpoint: CatalogDatasetCheckpoint) =>
-    (checkpoint.qualityStatus === 'failing' || hasDataIncident(checkpoint) ? 100_000 : 0)
-    + (checkpoint.sensitiveSignalCount ?? 0) * 1_000
+    softwareAssetPriority(checkpoint) * 1_000_000
+    + (checkpoint.qualityStatus === 'failing' || hasDataIncident(checkpoint) ? 100_000 : 0)
     + checkpoint.downstreamCount * 10
     + checkpoint.upstreamCount
 
@@ -185,7 +187,7 @@ export function rankCatalogRiskCandidateUrns(
     .filter((checkpoint) => checkpoint.status !== 'unavailable'
       && !excluded.has(checkpoint.urn)
       && !excludedFamilies.has(catalogDatasetFamilyKey(checkpoint.name))
-      && (hasDataIncident(checkpoint) || (checkpoint.sensitiveSignalCount ?? 0) > 0))
+      && isSoftwareAssetCheckpoint(checkpoint))
     .sort((left, right) => score(right) - score(left) || left.urn.localeCompare(right.urn))
     .map((checkpoint) => checkpoint.urn)
 }
@@ -205,7 +207,7 @@ export function selectCatalogCandidateUrn(
 ) {
   const available = new Set(
     progress.datasets
-      .filter((checkpoint) => checkpoint.status !== 'unavailable')
+      .filter((checkpoint) => checkpoint.status !== 'unavailable' && isSoftwareAssetCheckpoint(checkpoint))
       .map((checkpoint) => checkpoint.urn),
   )
   return preferredUrns.find((urn) => available.has(urn))

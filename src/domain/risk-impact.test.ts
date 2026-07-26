@@ -35,7 +35,7 @@ describe('impact and risk overview', () => {
     ])
   })
 
-  it('separates catalog-wide quality risks, sensitive coverage and governance coverage', () => {
+  it('reports software evidence quality and ownership gaps while ignoring unrelated PII', () => {
     const explorer = {
       ...newCard('explorer', 0),
       id: 'explorer',
@@ -55,7 +55,7 @@ describe('impact and risk overview', () => {
           datasets: [
             {
               urn: 'urn:li:dataset:quality',
-              name: 'quality_orders',
+              name: 'license_utilization',
               status: 'warning' as const,
               fieldCount: 12,
               sensitiveSignalCount: 0,
@@ -85,7 +85,7 @@ describe('impact and risk overview', () => {
             },
             {
               urn: 'urn:li:dataset:governance',
-              name: 'missing_tags',
+              name: 'software_contracts',
               status: 'warning' as const,
               fieldCount: 2,
               sensitiveSignalCount: 0,
@@ -105,13 +105,13 @@ describe('impact and risk overview', () => {
 
     const overview = collectRiskImpactOverview([explorer], [])
 
-    expect(overview).toMatchObject({ actionable: 1, needsVerification: 1, high: 1, coverageGaps: 1 })
+    expect(overview).toMatchObject({ actionable: 1, needsVerification: 0, high: 1, coverageGaps: 1 })
     expect(overview.items).toEqual(expect.arrayContaining([
-      expect.objectContaining({ kind: 'risk', domain: 'data', sourceRef: 'urn:li:dataset:quality' }),
-      expect.objectContaining({ kind: 'verification', domain: 'privacy', sourceRef: 'urn:li:dataset:sensitive' }),
+      expect.objectContaining({ kind: 'risk', domain: 'reliability', sourceRef: 'urn:li:dataset:quality' }),
       expect.objectContaining({ kind: 'coverage-gap', domain: 'governance', affectedAssets: 1 }),
     ]))
-    const classificationCoverage = overview.items.find((item) => item.title === 'Classification coverage incomplete')
+    expect(overview.items.some((item) => item.domain === 'privacy')).toBe(false)
+    const classificationCoverage = overview.items.find((item) => item.title === 'Software inventory classification incomplete')
     expect(classificationCoverage).toMatchObject({
       severity: 'medium',
       evidence: 'catalog_checkpoint:incomplete_governance',
@@ -119,7 +119,7 @@ describe('impact and risk overview', () => {
     expect(classificationCoverage).not.toHaveProperty('sourceRef')
   })
 
-  it('surfaces statistical profile anomalies independently from privacy coverage', () => {
+  it('turns software profile anomalies into license analytics risk without privacy or ML drift', () => {
     const explorer = {
       ...newCard('explorer', 0),
       id: 'explorer',
@@ -138,7 +138,7 @@ describe('impact and risk overview', () => {
           checkpointAt: '2026-07-24T20:00:00.000Z',
           datasets: [{
             urn: 'urn:li:dataset:training',
-            name: 'training_customers',
+            name: 'license_usage',
             status: 'warning' as const,
             fieldCount: 8,
             sensitiveSignalCount: 2,
@@ -175,25 +175,13 @@ describe('impact and risk overview', () => {
     expect(overview.items).toEqual(expect.arrayContaining([
       expect.objectContaining({
         kind: 'risk',
-        domain: 'data',
+        domain: 'analytics',
         severity: 'high',
         sourceRef: 'urn:li:dataset:training',
         evidence: 'dataset_profile:two_version_aggregate',
       }),
-      expect.objectContaining({
-        kind: 'verification',
-        domain: 'privacy',
-        sourceRef: 'urn:li:dataset:training',
-      }),
-      expect.objectContaining({
-        kind: 'risk',
-        domain: 'ml',
-        severity: 'high',
-        affectedModels: 2,
-        sourceRef: 'urn:li:dataset:training',
-        evidence: 'dataset_profile:two_version_aggregate+lineage:versioned',
-      }),
     ]))
+    expect(overview.items.some((item) => item.domain === 'privacy' || item.domain === 'ml')).toBe(false)
   })
 
   it('groups repeated governance gaps instead of producing one risk per dataset', () => {
@@ -213,7 +201,7 @@ describe('impact and risk overview', () => {
           concurrency: 1,
           state: 'complete' as const,
           checkpointAt: '2026-07-24T20:00:00.000Z',
-          datasets: ['orders', 'customers', 'products'].map((name, index) => ({
+          datasets: ['software_contracts', 'license_assignments', 'subscription_products'].map((name, index) => ({
             urn: `urn:li:dataset:${name}`,
             name,
             status: 'warning' as const,
@@ -240,8 +228,8 @@ describe('impact and risk overview', () => {
       coverageGaps: 2,
     })
     expect(overview.items.filter((item) => item.kind === 'coverage-gap')).toEqual([
-      expect.objectContaining({ title: 'Ownership coverage incomplete', affectedAssets: 1 }),
-      expect.objectContaining({ title: 'Classification coverage incomplete', affectedAssets: 3 }),
+      expect.objectContaining({ title: 'Software ownership coverage incomplete', affectedAssets: 1 }),
+      expect.objectContaining({ title: 'Software inventory classification incomplete', affectedAssets: 3 }),
     ])
   })
 })

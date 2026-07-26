@@ -202,15 +202,15 @@ describe('visual pipeline workspace regressions', () => {
     }))
   })
 
-  it('uses one bounded catalog-wide discovery for an empty autonomous workbench', async () => {
+  it('uses one bounded license discovery for an empty autonomous workbench', async () => {
     const user = userEvent.setup()
     const { api } = installElectronWorkspaceMock({ activeWorkspaceId: null, uncleanShutdown: false, workspaces: [] })
     const asset = {
-      urn: 'urn:li:dataset:(urn:li:dataPlatform:dbt,analytics.customers,PROD)',
-      name: 'customers',
+      urn: 'urn:li:dataset:(urn:li:dataPlatform:dbt,sam.license_utilization,PROD)',
+      name: 'license_utilization',
       platform: 'dbt',
       environment: 'PROD',
-      description: 'Governed customers',
+      description: 'Governed aggregate software license utilization',
       owners: ['Data Platform'],
       tags: [],
       fields: [],
@@ -222,7 +222,7 @@ describe('visual pipeline workspace regressions', () => {
     const inspectedAsset = {
       ...asset,
       owners: ['Data Platform'],
-      fields: [{ name: 'customer_id', type: 'string' as const }],
+      fields: [{ name: 'purchased_seats', type: 'number' as const }],
       qualityStatus: 'healthy' as const,
     }
     api.getDataHubMcpStatus = vi.fn(async () => ({ mode: 'connected' as const, transport: 'stdio' as const, message: 'MCP studio connected', toolCount: 8, tools: [], writebackAvailable: false, settings: { transport: 'stdio' as const, url: 'http://localhost:8080', tokenConfigured: false, tokenSource: 'none' as const, encryptionAvailable: false, writebackEnabled: false } }))
@@ -249,13 +249,13 @@ describe('visual pipeline workspace regressions', () => {
 
     await waitFor(() => expect(api.runChatGPTProposal).toHaveBeenCalledTimes(1))
     expect(api.searchDataHubAssets).toHaveBeenCalledTimes(1)
-    expect(api.searchDataHubAssets).toHaveBeenCalledWith('*')
+    expect(api.searchDataHubAssets).toHaveBeenCalledWith('license')
     expect(api.inspectDataHubAsset).toHaveBeenNthCalledWith(1, asset.urn, false, 'summary')
     expect(api.inspectDataHubAsset).toHaveBeenNthCalledWith(2, asset.urn, false, 'deep')
     expect(api.runChatGPTProposal).toHaveBeenCalledWith(expect.objectContaining({
       datahubEvidence: expect.arrayContaining([
-        expect.stringContaining('Starting dataset candidate selected after complete catalog exploration: customers'),
-        expect.stringContaining('Selected schema: customer_id:string'),
+        expect.stringContaining('Starting dataset candidate selected after complete catalog exploration: license_utilization'),
+        expect.stringContaining('Selected schema: purchased_seats:number'),
       ]),
     }))
     expect(api.recordIncidentEvent).not.toHaveBeenCalledWith(expect.objectContaining({ incidentKey: 'source-discovery:datahub', transition: 'opened' }))
@@ -265,11 +265,11 @@ describe('visual pipeline workspace regressions', () => {
     const user = userEvent.setup()
     const { api } = installElectronWorkspaceMock({ activeWorkspaceId: null, uncleanShutdown: false, workspaces: [] })
     const assets = Array.from({ length: 9 }, (_, index) => ({
-      urn: `urn:li:dataset:(urn:li:dataPlatform:dbt,analytics.dataset_${index},PROD)`,
-      name: `dataset_${index}`,
+      urn: `urn:li:dataset:(urn:li:dataPlatform:dbt,sam.license_dataset_${index},PROD)`,
+      name: `license_dataset_${index}`,
       platform: 'dbt',
       environment: 'PROD',
-      description: 'Governed dataset',
+      description: 'Governed software license dataset',
       owners: ['Data Platform'],
       tags: ['governed'],
       fields: [{ name: 'id', type: 'string' as const }],

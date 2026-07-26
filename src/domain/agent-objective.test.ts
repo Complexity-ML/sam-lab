@@ -2,17 +2,17 @@ import { describe, expect, it } from 'vitest'
 import { dataHubDiscoveryQuery, defaultBlankObjective, resolveAgentObjective } from './agent-objective'
 
 describe('bounded agent objectives', () => {
-  it('uses one catalog-wide discovery for blank and controller missions', () => {
-    expect(dataHubDiscoveryQuery(defaultBlankObjective)).toBe('*')
-    expect(dataHubDiscoveryQuery('Execute SAM LAB Control policy: objective=maintain governed graph | on_review=resume | on_idle=monitor')).toBe('*')
+  it('uses a focused license discovery for blank missions and preserves explicit controller missions', () => {
+    expect(dataHubDiscoveryQuery(defaultBlankObjective)).toBe('license')
+    expect(dataHubDiscoveryQuery('Execute SAM LAB Control policy: objective=maintain governed graph | on_review=resume | on_idle=monitor')).toBe('license')
     expect(dataHubDiscoveryQuery('Inspect Customer_Analytics_Measures')).toBe('Inspect Customer_Analytics_Measures')
   })
 
-  it('turns empty Play into a governed blank-workbench mission', () => {
+  it('turns empty Play into a software asset management mission', () => {
     expect(resolveAgentObjective('', { hasGraph: false, matchedSource: false })).toMatchObject({
       accepted: true,
       defaulted: true,
-      objective: expect.stringContaining('governed'),
+      objective: expect.stringContaining('Software Asset Management'),
     })
   })
 

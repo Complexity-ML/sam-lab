@@ -230,18 +230,16 @@ export default function App() {
       ? ` Work only on dataset ${item.sourceRef}. Preserve the completed Catalog Explorer checkpoint and deep-read only this dataset; never restart full catalog discovery.`
       : ''
     const objective = item.sourceRef && item.kind === 'risk'
-      ? 'Investigate this catalog-backed data quality risk. Create one focused Source and compact Data Profile, trace affected assets with Impact Analysis, materialize an evidence-backed Risk Assessment, and propose only a reversible graph correction with atomic validation and fresh post-condition verification. Do not treat connector failures as dataset health.'
-      : item.sourceRef && item.kind === 'verification' && item.domain === 'privacy'
-        ? 'Verify this catalog-backed sensitive-data exposure candidate. Deep-read only its classifications and lineage. Create a privacy Impact Analysis and Risk Assessment only when downstream exposure is evidenced; otherwise record the verification result without inventing an incident.'
+      ? 'Investigate this catalog-backed software asset risk. Create one focused software inventory Source and compact aggregate profile, recalculate license utilization, entitlement or renewal impact, materialize an evidence-backed SAM Risk Assessment, and propose only a reversible reviewed recommendation with fresh post-condition verification. Never turn PII classifications into the optimization objective and do not treat connector failures as license evidence.'
       : item.sourceRef
-          ? 'Investigate this catalog-backed governance risk coverage gap. Confirm ownership and classifications for this dataset, trace its downstream impact, and create an evidence-backed Governance Risk Assessment. Keep missing metadata distinct from a data-quality incident and request Human Review when catalog ownership cannot be established safely.'
+          ? 'Investigate this catalog-backed SAM coverage gap. Confirm product, contract and budget ownership plus license classifications, quantify only supported seat, spend or renewal impact, and create a SAM Risk Assessment only when the evidence is material. Keep missing metadata distinct from a license or compliance incident.'
         : item.kind === 'risk'
-      ? 'Correct this specific evidence-backed Risk Assessment only. Preserve the original risk, severity, evidence and affected scope. Add a versioned graph-only Compatibility Patch or other compatible mitigation boundary, atomic Validation, Human Review when required, and an Output/post-condition path. Record the mitigation diff and residual_risk=verify_post_condition on the existing Risk card. Do not restart catalog discovery, mutate source data, rebuild unrelated branches or claim the risk is resolved before fresh verification.'
+      ? 'Correct this specific evidence-backed SAM Risk Assessment only. Preserve the original product, severity, evidence, affected seats or contracts and savings or compliance scope. Add a reversible recommendation, atomic Validation, Human Review and a clear SAM Output. Never mutate the vendor source or claim reclamation, renewal or compliance remediation happened before fresh verification.'
       : item.kind === 'coverage-gap' && item.domain === 'governance'
-        ? 'Review this grouped catalog governance coverage gap. Do not create one Risk Assessment per dataset. Identify the smallest batch metadata remediation, preserve it as a coverage task, and promote only sensitive, critical or downstream-exposed datasets to focused risk analysis.'
+        ? 'Review this grouped software inventory coverage gap. Do not create one Risk Assessment per dataset. Identify the smallest product, owner, contract or entitlement metadata task, and promote only financially or compliance-material software assets to focused risk analysis.'
       : item.kind === 'coverage-gap'
-        ? 'Complete this specific uncovered Impact Analysis with an evidence-backed Risk Assessment and one bounded compatible mitigation path. Preserve the existing impact and unrelated branches. Do not mutate source data or claim resolution before fresh verification.'
-        : 'Assess this specific Impact Analysis. Add an evidence-backed Risk Assessment only when supported, followed by a bounded compatible mitigation and verification path. Preserve the existing impact and all unrelated branches.'
+        ? 'Complete this specific uncovered SAM Impact Analysis with an evidence-backed license, cost, entitlement or renewal Risk Assessment and one bounded reviewed recommendation. Preserve unrelated branches and do not mutate vendor data.'
+        : 'Assess this specific SAM Impact Analysis. Add a Risk Assessment only when aggregate software evidence supports it, followed by a bounded reviewed recommendation and verification path.'
     void reworkSelectedWithAgent(item.nodeId, `${objective}${sourceScope}`)
   }
 
@@ -467,7 +465,7 @@ export default function App() {
     </section>
 
     {resultsOpen && <Modal ariaLabelledby="analysis-results-title" className="analysis-results-modal" onClose={() => setResultsOpen(false)}>
-      <AnalysisResultsView nodes={nodes} onClose={() => setResultsOpen(false)} onOpenProposal={() => { setResultsOpen(false); setProposalReviewOpen(true) }} onSelectCard={(nodeId) => { setSelectedId(nodeId); setResultsOpen(false); setInspectorReturn('results'); setReportsOpen(false); setRisksOpen(false); setInspectorOpen(true) }} proposal={proposal?.incidentKey ? proposal : undefined} />
+      <AnalysisResultsView nodes={nodes} onClose={() => setResultsOpen(false)} onOpenProposal={() => { setResultsOpen(false); setProposalReviewOpen(true) }} onSelectCard={(nodeId) => { setSelectedId(nodeId); setResultsOpen(false); setInspectorReturn('results'); setReportsOpen(false); setRisksOpen(false); setInspectorOpen(true) }} overview={riskOverview} proposal={proposal?.incidentKey ? proposal : undefined} />
     </Modal>}
 
     {proposal && !proposalReviewOpen && <button className="proposal-review-reopen" onClick={() => setProposalReviewOpen(true)} type="button"><span aria-hidden="true">✦</span> Review agent proposal</button>}

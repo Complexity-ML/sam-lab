@@ -40,8 +40,8 @@ function inspection(value: DataHubAssetSummary): CatalogInspection {
 
 describe('Catalog Explorer', () => {
   it('ranks reusable candidates from the complete checkpoint instead of only the latest batch', () => {
-    const healthy = checkpointForInspection(inspection(asset(1)))
-    const governedWarning = checkpointForInspection(inspection({ ...asset(2), owners: [], fields: [{ name: 'id', type: 'string' }, { name: 'email', type: 'string' }] }))
+    const healthy = checkpointForInspection(inspection({ ...asset(1), name: 'license_utilization' }))
+    const governedWarning = checkpointForInspection(inspection({ ...asset(2), name: 'software_contracts', owners: [], fields: [{ name: 'id', type: 'string' }, { name: 'product', type: 'string' }] }))
     const unavailable = checkpointForInspection({
       asset: asset(3),
       evidence: [{ ...inspection(asset(3)).evidence[0]!, status: 'error', stale: true, summary: 'timed out' }],
@@ -63,8 +63,8 @@ describe('Catalog Explorer', () => {
   })
 
   it('resumes a completed checkpoint from the source in the rejected version before using catalog rank', () => {
-    const rankedFirst = checkpointForInspection(inspection(asset(1)))
-    const rejectedSource = checkpointForInspection(inspection({ ...asset(2), owners: [] }))
+    const rankedFirst = checkpointForInspection(inspection({ ...asset(1), name: 'license_utilization' }))
+    const rejectedSource = checkpointForInspection(inspection({ ...asset(2), name: 'software_contracts', owners: [] }))
     const unavailable = checkpointForInspection({
       asset: asset(3),
       evidence: [{ ...inspection(asset(3)).evidence[0]!, status: 'error', stale: true, summary: 'timed out' }],
@@ -225,7 +225,7 @@ describe('Catalog Explorer', () => {
     })
   })
 
-  it('prioritizes true data and sensitive risk candidates without promoting governance gaps', () => {
+  it('selects software asset evidence instead of unrelated PII or generic quality datasets', () => {
     const governance = checkpointForInspection(inspection({ ...asset(1), tags: [] }))
     const sensitive = checkpointForInspection(inspection({
       ...asset(2),
@@ -233,35 +233,35 @@ describe('Catalog Explorer', () => {
       downstream: [{ urn: 'urn:li:dataset:consumer', name: 'consumer', sensitive: false }],
     }))
     const failing = checkpointForInspection(inspection({ ...asset(3), qualityStatus: 'failing' }))
+    const licenses = checkpointForInspection(inspection({ ...asset(4), name: 'license_utilization' }))
     const progress = {
       query: '*',
-      total: 3,
-      discovered: 3,
-      inspected: 3,
+      total: 4,
+      discovered: 4,
+      inspected: 4,
       failed: 0,
       incidents: 1,
       governanceGaps: 1,
       concurrency: 4,
       state: 'complete' as const,
       checkpointAt: capturedAt,
-      datasets: [governance, sensitive, failing],
+      datasets: [governance, sensitive, failing, licenses],
     }
 
-    expect(rankCatalogRiskCandidateUrns(progress)).toEqual([failing.urn, sensitive.urn])
-    expect(rankCatalogRiskCandidateUrns(progress, [failing.urn])).toEqual([sensitive.urn])
+    expect(rankCatalogRiskCandidateUrns(progress)).toEqual([licenses.urn])
+    expect(rankCatalogRiskCandidateUrns(progress, [licenses.urn])).toEqual([])
   })
 
-  it('does not rebuild the same logical risk branch for every platform representation', () => {
-    const sensitiveCheckpoint = (urn: string, name: string, count: number) => checkpointForInspection(inspection({
+  it('does not rebuild the same logical software asset branch for every platform representation', () => {
+    const softwareCheckpoint = (urn: string, name: string, count: number) => checkpointForInspection(inspection({
       ...asset(count),
       urn,
       name,
-      fields: Array.from({ length: count }, (_, index) => ({ name: `pii_${index}`, type: 'string', tags: ['PII'] })),
     }))
-    const dbt = sensitiveCheckpoint('urn:dbt:order-details', 'order_details', 8)
-    const warehouse = sensitiveCheckpoint('urn:snowflake:order-details', 'ORDER_DETAILS', 7)
-    const replica = sensitiveCheckpoint('urn:snowflake:order-details-replica', 'order_details_replica', 5)
-    const customers = sensitiveCheckpoint('urn:dbt:customers', 'customers', 4)
+    const dbt = softwareCheckpoint('urn:dbt:license-utilization', 'license_utilization', 8)
+    const warehouse = softwareCheckpoint('urn:snowflake:license-utilization', 'LICENSE_UTILIZATION', 7)
+    const replica = softwareCheckpoint('urn:snowflake:license-utilization-replica', 'license_utilization_replica', 5)
+    const contracts = softwareCheckpoint('urn:dbt:software-contracts', 'software_contracts', 4)
     const progress = {
       query: '*',
       total: 4,
@@ -273,18 +273,18 @@ describe('Catalog Explorer', () => {
       concurrency: 4,
       state: 'complete' as const,
       checkpointAt: capturedAt,
-      datasets: [dbt, warehouse, replica, customers],
+      datasets: [dbt, warehouse, replica, contracts],
     }
 
-    expect(catalogDatasetFamilyKey('Order Details')).toBe('order_details')
-    expect(catalogDatasetFamilyKey('order_details_replica')).toBe('order_details')
-    expect(rankCatalogRiskCandidateUrns(progress, [dbt.urn])).toEqual([customers.urn])
+    expect(catalogDatasetFamilyKey('License Utilization')).toBe('license_utilization')
+    expect(catalogDatasetFamilyKey('license_utilization_replica')).toBe('license_utilization')
+    expect(rankCatalogRiskCandidateUrns(progress, [dbt.urn])).toEqual([contracts.urn])
   })
 
   it('keeps autonomous work alive until catalog coverage and risk branches are represented', () => {
-    const sensitive = checkpointForInspection(inspection({
+    const licenseUsage = checkpointForInspection(inspection({
       ...asset(2),
-      fields: [{ name: 'email', type: 'string', tags: ['PII'] }],
+      name: 'license_usage',
     }))
     const complete = {
       query: '*',
@@ -297,12 +297,12 @@ describe('Catalog Explorer', () => {
       concurrency: 1,
       state: 'complete' as const,
       checkpointAt: capturedAt,
-      datasets: [sensitive],
+      datasets: [licenseUsage],
     }
 
     expect(catalogHasPendingAutonomousWork({ ...complete, state: 'inspecting' })).toBe(true)
     expect(catalogHasPendingAutonomousWork(complete)).toBe(true)
-    expect(catalogHasPendingAutonomousWork(complete, [sensitive.urn])).toBe(false)
+    expect(catalogHasPendingAutonomousWork(complete, [licenseUsage.urn])).toBe(false)
   })
 
   it('keeps catalog coverage moving when a complete dataset batch is unavailable', async () => {
