@@ -159,6 +159,8 @@ jobs:
           gh release upload "$TAG" release-assets/* --repo "$GITHUB_REPOSITORY" --clobber
           gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --draft=false --prerelease
 
+          cp install-sam-lab-macos.sh release-assets/install-sam-lab-macos.sh
+
           ALIAS_TAG="setup-latest"
           git tag --force "$ALIAS_TAG" "$GITHUB_SHA"
           git push origin "refs/tags/$ALIAS_TAG" --force

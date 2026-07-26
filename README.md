@@ -94,6 +94,20 @@ SAM LAB includes a lightweight Tauri launcher in `apps/bootstrap-installer`. It 
 - **Stable** installs the latest published SAM LAB release.
 - **Main** installs the newest commit from `Complexity-ML/labo-sam`.
 
+Install and open Setup on an Apple Silicon or Intel Mac with one command:
+
+```bash
+curl -fsSL https://github.com/Complexity-ML/labo-sam/releases/download/setup-latest/install-sam-lab-macos.sh | bash
+```
+
+To preselect the newest `main` commit instead of Stable:
+
+```bash
+curl -fsSL https://github.com/Complexity-ML/labo-sam/releases/download/setup-latest/install-sam-lab-macos.sh | bash -s -- --channel main
+```
+
+The script detects the Mac architecture, downloads the matching checksum-verified Tauri helper, installs it without `sudo`, then opens the Setup window. The preview is unsigned and unnotarized, so macOS may still display a security confirmation.
+
 Run the Setup launcher locally:
 
 ```bash
