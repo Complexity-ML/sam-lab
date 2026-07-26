@@ -603,7 +603,7 @@ export function SettingsModal(props: SettingsModalProps) {
           <div className="settings-page-heading"><small>EXAMPLES</small><h3>Choose a starting canvas</h3><p>SAM LAB always opens empty. Examples are loaded only when you request them.</p></div>
           <section className="settings-section preset-grid">
             <button onClick={() => onLoadPreset('empty')} type="button"><LayoutTemplate size={21} /><strong>Empty workbench</strong><small>Start from a blank portfolio and add only the SAM stages you need.</small></button>
-            <button onClick={() => onLoadPreset('license-reclamation')} type="button"><Database size={21} /><strong>License reclamation</strong><small>Find inactive seats, calculate annual waste and review a reclaim plan.</small></button>
+            <button onClick={() => onLoadPreset('license-reclamation')} type="button"><Database size={21} /><strong>Copilot license optimization</strong><small>Analyze a DataHub-backed 250-seat Copilot dataset and review USD 9,348 in annual savings.</small></button>
             <button onClick={() => onLoadPreset('compliance-exposure')} type="button"><KeyRound size={21} /><strong>Entitlement compliance</strong><small>Compare assignments to contracts and route material exposure to review.</small></button>
             <button onClick={() => onLoadPreset('renewal-optimization')} type="button"><Network size={21} /><strong>Renewal optimization</strong><small>Rank upcoming renewals by cost, utilization and evidence coverage.</small></button>
             <button onClick={() => onLoadPreset('broken-governance')} type="button"><AlertTriangle size={21} /><strong>Evidence gap lab</strong><small>Explore how missing ownership and failing evidence block a decision.</small></button>

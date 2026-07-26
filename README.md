@@ -16,6 +16,11 @@ The application starts with a blank workbench. Cards represent reusable analysis
 
 The first built-in analyzer is implemented in [`src/domain/sam.ts`](src/domain/sam.ts). It produces bounded portfolio metrics and evidence-backed findings without mutating vendor systems.
 
+The reproducible [`examples/sam-copilot-datahub`](examples/sam-copilot-datahub)
+data product demonstrates the complete path from pseudonymized GitHub Copilot
+license evidence through PostgreSQL and DataHub lineage to a human-reviewed
+SAM LAB reclamation decision.
+
 ## Card workflow
 
 ```mermaid

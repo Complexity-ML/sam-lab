@@ -694,9 +694,9 @@ describe('visual pipeline workspace regressions', () => {
 
     await user.click(screen.getByRole('button', { name: 'Open settings' }))
     await user.click(await screen.findByRole('button', { name: 'ExamplesStart empty or explore' }))
-    await user.click(screen.getByRole('button', { name: 'License reclamationFind inactive seats, calculate annual waste and review a reclaim plan.' }))
+    await user.click(screen.getByRole('button', { name: 'Copilot license optimizationAnalyze a DataHub-backed 250-seat Copilot dataset and review USD 9,348 in annual savings.' }))
 
-    expect(await screen.findByText('License reclamation')).toBeTruthy()
+    expect(await screen.findByText('Copilot license optimization')).toBeTruthy()
     await new Promise((resolve) => window.setTimeout(resolve, 750))
     await waitFor(() => expect(autosaveWorkspace).not.toHaveBeenCalled())
     expect(screen.getByText('Unsaved')).toBeTruthy()

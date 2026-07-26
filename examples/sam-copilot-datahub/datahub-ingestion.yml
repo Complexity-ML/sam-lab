@@ -1,0 +1,33 @@
+source:
+  type: postgres
+  config:
+    host_port: localhost:55432
+    database: sam_copilot
+    username: sam_demo
+    password: sam_demo
+    env: PROD
+    platform_instance: sam-copilot-demo
+    convert_urns_to_lowercase: true
+    include_tables: true
+    include_views: true
+    include_view_lineage: true
+    include_view_column_lineage: true
+    schema_pattern:
+      allow:
+        - "sam_raw"
+        - "sam_mart"
+    profiling:
+      enabled: true
+      profile_table_level_only: false
+      include_field_distinct_count: true
+      include_field_min_value: true
+      include_field_max_value: true
+      include_field_mean_value: true
+      include_field_median_value: true
+      include_field_stddev_value: true
+      include_field_quantiles: true
+
+sink:
+  type: datahub-rest
+  config:
+    server: http://localhost:8080

@@ -1,0 +1,251 @@
+user_key,department,cost_center,employment_status,critical_access
+usr_e2b15f512599d4a3,Engineering,CC-ENG,active,false
+usr_3ade6ad8094cba86,Data,CC-DATA,active,false
+usr_db1ca23ee62f0485,Product,CC-PROD,active,false
+usr_acae9abb06c10c23,Security,CC-SEC,active,false
+usr_5a7526fcb1e2a11d,Customer Success,CC-CS,active,false
+usr_a7c331a50e0f3396,Operations,CC-OPS,active,false
+usr_bbd311ca253f3dd8,Engineering,CC-ENG,active,false
+usr_bdc9bda9a0ee2b2a,Data,CC-DATA,active,false
+usr_f50378e3943fb661,Product,CC-PROD,active,false
+usr_b3ddd81122075c74,Security,CC-SEC,active,false
+usr_3ff06418f51c7f31,Customer Success,CC-CS,active,false
+usr_f934018e6dd8fdc1,Operations,CC-OPS,active,false
+usr_acaee7d1228cbef9,Engineering,CC-ENG,active,false
+usr_27d29533a4f9f454,Data,CC-DATA,active,false
+usr_436dde314775d503,Product,CC-PROD,active,false
+usr_a3665f74913c4614,Security,CC-SEC,active,false
+usr_8c010d0fe43cb0cc,Customer Success,CC-CS,active,false
+usr_a9f79c7ff9f7ce74,Operations,CC-OPS,active,false
+usr_e79410a9435fd4e9,Engineering,CC-ENG,active,false
+usr_d674ae091a1f3c95,Data,CC-DATA,active,false
+usr_3967c5a4350bd8c5,Product,CC-PROD,active,false
+usr_fc93b905c5fa4347,Security,CC-SEC,active,false
+usr_142acc0edba83814,Customer Success,CC-CS,active,true
+usr_c5f19fd330811f8f,Operations,CC-OPS,active,false
+usr_fc21918340c6de0f,Engineering,CC-ENG,active,false
+usr_65a055a1b4854f0e,Data,CC-DATA,active,false
+usr_c59d9e03f7687362,Product,CC-PROD,active,false
+usr_7bd3dcb6f3c6462a,Security,CC-SEC,active,false
+usr_e450b06f6ac38a4c,Customer Success,CC-CS,active,false
+usr_688525480e834100,Operations,CC-OPS,active,false
+usr_d6b40bfce673d513,Engineering,CC-ENG,active,false
+usr_b3fb92ffd605ecb5,Data,CC-DATA,active,false
+usr_2030985f09c4d218,Product,CC-PROD,active,false
+usr_1c2f3e824e356758,Security,CC-SEC,active,false
+usr_481f92b5c7c72df2,Customer Success,CC-CS,active,false
+usr_5a39658afa0ec026,Operations,CC-OPS,active,false
+usr_e629f71e8503a479,Engineering,CC-ENG,active,false
+usr_8b1d32f5b46a45c0,Data,CC-DATA,active,false
+usr_3e72c7fa8c04f030,Product,CC-PROD,active,false
+usr_96fe54a91a18df37,Security,CC-SEC,active,false
+usr_9e7c023088bec9d2,Customer Success,CC-CS,active,false
+usr_4ebe8abdb2b90f0f,Operations,CC-OPS,active,false
+usr_101ed92224f9368b,Engineering,CC-ENG,active,false
+usr_deed9a5b9ec85264,Data,CC-DATA,active,false
+usr_88adb3fe8ffa08f0,Product,CC-PROD,active,false
+usr_837f8a013b185b06,Security,CC-SEC,active,true
+usr_310e6dffc4e16303,Customer Success,CC-CS,active,false
+usr_a422eaf52dc5f579,Operations,CC-OPS,active,false
+usr_e54422cd223d15f7,Engineering,CC-ENG,active,false
+usr_27b297f3396e485a,Data,CC-DATA,active,false
+usr_3d9f4063ec364a90,Product,CC-PROD,active,false
+usr_eafdfb97eaf8933c,Security,CC-SEC,active,false
+usr_1ff0704205a7761a,Customer Success,CC-CS,active,false
+usr_a25a8bf2287203ea,Operations,CC-OPS,active,false
+usr_5340e099e0b8ba4a,Engineering,CC-ENG,active,false
+usr_06f04208965b330e,Data,CC-DATA,active,false
+usr_d8dd19ad8d160736,Product,CC-PROD,active,false
+usr_53daa644c3c5afd0,Security,CC-SEC,active,false
+usr_008abfe21aa8cf02,Customer Success,CC-CS,active,false
+usr_437e639e1f889660,Operations,CC-OPS,active,false
+usr_613dd210fa3fd9be,Engineering,CC-ENG,active,false
+usr_38fa1675e8decfc4,Data,CC-DATA,active,false
+usr_db3b2404d51329f3,Product,CC-PROD,active,false
+usr_95f31178f258bb6d,Security,CC-SEC,active,false
+usr_c9d1cde1bc783fe6,Customer Success,CC-CS,active,false
+usr_f94f5f402b3cb4f7,Operations,CC-OPS,active,false
+usr_1043bedff447cb00,Engineering,CC-ENG,active,false
+usr_88a1286a9ffd7454,Data,CC-DATA,active,false
+usr_557e531267e1d13c,Product,CC-PROD,active,true
+usr_f7f57bdd17113fbf,Security,CC-SEC,active,false
+usr_a55994ea377099a5,Customer Success,CC-CS,active,false
+usr_69031f13baf2d4e4,Operations,CC-OPS,active,false
+usr_7fb60467b69a5fda,Engineering,CC-ENG,active,false
+usr_956ddf5200045b76,Data,CC-DATA,active,false
+usr_75b0073a4fd2f43b,Product,CC-PROD,active,false
+usr_9bc5f8306ff6a4c1,Security,CC-SEC,active,false
+usr_9469dffa932c7545,Customer Success,CC-CS,active,false
+usr_c23412b0c3756e0c,Operations,CC-OPS,active,false
+usr_7cb4d78030093719,Engineering,CC-ENG,active,false
+usr_9fc5eae2610205ef,Data,CC-DATA,active,false
+usr_599574452e3b7892,Product,CC-PROD,active,false
+usr_8c6696f4e2749cd8,Security,CC-SEC,active,false
+usr_a2bbe6f3c3084505,Customer Success,CC-CS,active,false
+usr_679d039c0d62de5c,Operations,CC-OPS,active,false
+usr_4f2fb105769ad370,Engineering,CC-ENG,active,false
+usr_c2545c27c434ae94,Data,CC-DATA,active,false
+usr_c53049cf4c179736,Product,CC-PROD,active,false
+usr_c5f5e51a6836dfea,Security,CC-SEC,active,false
+usr_2c382e0b2b2262a7,Customer Success,CC-CS,active,false
+usr_9076e6eb70b42014,Operations,CC-OPS,active,false
+usr_6d11ba549c896ab1,Engineering,CC-ENG,active,false
+usr_a5a7e55e08536a3d,Data,CC-DATA,active,true
+usr_a39f3464c443df7a,Product,CC-PROD,active,false
+usr_16d99b8620074b8e,Security,CC-SEC,active,false
+usr_3a048213c4ca2d22,Customer Success,CC-CS,active,false
+usr_81f24fd7ab1e9a7d,Operations,CC-OPS,active,false
+usr_cb3d904445cabcaf,Engineering,CC-ENG,active,false
+usr_9db16a2a396eb81d,Data,CC-DATA,active,false
+usr_63846a9127742a28,Product,CC-PROD,active,false
+usr_da739963bef2c4e6,Security,CC-SEC,active,false
+usr_fd6dda36b92f89c7,Customer Success,CC-CS,active,false
+usr_d83e604f18767f35,Operations,CC-OPS,active,false
+usr_219034b6bc4a2fb0,Engineering,CC-ENG,active,false
+usr_6c7b1696d4093587,Data,CC-DATA,active,false
+usr_e4336b21a87851bb,Product,CC-PROD,active,false
+usr_a8110948ed7680bb,Security,CC-SEC,active,false
+usr_d4b132087e418e88,Customer Success,CC-CS,active,false
+usr_c120e9848d1e271e,Operations,CC-OPS,active,false
+usr_397cb97205e3c865,Engineering,CC-ENG,active,false
+usr_1c8a04c500850584,Data,CC-DATA,active,false
+usr_5f01cf9689cac7da,Product,CC-PROD,active,false
+usr_a79b342b9cbe7318,Security,CC-SEC,active,false
+usr_eba58a7d9700ab36,Customer Success,CC-CS,active,false
+usr_a15af272bb8fb8e2,Operations,CC-OPS,active,false
+usr_98b2584d96d76b65,Engineering,CC-ENG,active,true
+usr_639f684335f65a86,Data,CC-DATA,active,false
+usr_5859abdb5b78e1cb,Product,CC-PROD,active,false
+usr_4f733ce75ddf98de,Security,CC-SEC,active,false
+usr_abc56925512bf3de,Customer Success,CC-CS,active,false
+usr_0a0f299b46c7b431,Operations,CC-OPS,active,false
+usr_2d911b3171333e20,Engineering,CC-ENG,active,false
+usr_411c0ee4158ec6b8,Data,CC-DATA,active,false
+usr_8a1d56b282301e9f,Product,CC-PROD,active,false
+usr_722b28cd7052f55b,Security,CC-SEC,active,false
+usr_b987780ba3ff4bf2,Customer Success,CC-CS,active,false
+usr_53d574ca3ca234c7,Operations,CC-OPS,active,false
+usr_bae61016c7bd99c9,Engineering,CC-ENG,active,false
+usr_1965b3c09deaaf7c,Data,CC-DATA,active,false
+usr_25f1959008bfbdda,Product,CC-PROD,active,false
+usr_a5966ed6a4872ebc,Security,CC-SEC,active,false
+usr_63411fd5d7a454c2,Customer Success,CC-CS,active,false
+usr_235e059ca1104020,Operations,CC-OPS,active,false
+usr_01f20d73361ac638,Engineering,CC-ENG,active,false
+usr_c996ef9e46bb458a,Data,CC-DATA,active,false
+usr_f4de64f110a6763c,Product,CC-PROD,active,false
+usr_fb49cc1668566310,Security,CC-SEC,active,false
+usr_cbbc3982b2f26df7,Customer Success,CC-CS,active,false
+usr_c9b3b8bf19e3d761,Operations,CC-OPS,active,true
+usr_dd5580cac8e22f82,Engineering,CC-ENG,active,false
+usr_635640d098d5da53,Data,CC-DATA,active,false
+usr_ef965b8802422fb2,Product,CC-PROD,active,false
+usr_8eb71f3ea723fbe6,Security,CC-SEC,active,false
+usr_8a4100a15df179db,Customer Success,CC-CS,active,false
+usr_baf8425e0a6d809f,Operations,CC-OPS,active,false
+usr_1a61d5b735f9d1f6,Engineering,CC-ENG,active,false
+usr_affcb7f65c1d1588,Data,CC-DATA,active,false
+usr_5ad9b1ce46e3e6fd,Product,CC-PROD,active,false
+usr_9cd0d1813b16f814,Security,CC-SEC,active,false
+usr_7952ea61fb5de101,Customer Success,CC-CS,active,false
+usr_76e0a55453acb208,Operations,CC-OPS,active,false
+usr_9fc90f1699340112,Engineering,CC-ENG,active,false
+usr_8cbc6cc600c00861,Data,CC-DATA,active,false
+usr_bcdc716071fd1ff4,Product,CC-PROD,active,false
+usr_e42fb011f3e64d74,Security,CC-SEC,active,false
+usr_f0285234d2321e3b,Customer Success,CC-CS,active,false
+usr_3a6c35ff4f6ad8c2,Operations,CC-OPS,active,false
+usr_786d02a08044e8f2,Engineering,CC-ENG,active,false
+usr_8729d8cb9faaf89b,Data,CC-DATA,active,false
+usr_4c5969b6844f45de,Product,CC-PROD,active,false
+usr_831b72631e036b5b,Security,CC-SEC,active,false
+usr_4b07d078984c0668,Customer Success,CC-CS,active,true
+usr_700bf38a98fb4308,Operations,CC-OPS,active,false
+usr_52fcf4b5d673feb7,Engineering,CC-ENG,active,false
+usr_f0206ad401f300d0,Data,CC-DATA,active,false
+usr_64308c8519426c71,Product,CC-PROD,active,false
+usr_058bc37f3578c2f1,Security,CC-SEC,active,false
+usr_f44f79f493e9f99a,Customer Success,CC-CS,active,false
+usr_1803a99048bf207a,Operations,CC-OPS,active,false
+usr_15e42d65ce39a83f,Engineering,CC-ENG,active,false
+usr_dc57387f854c8d08,Data,CC-DATA,active,false
+usr_21a7ac4eb5f50540,Product,CC-PROD,active,false
+usr_510f6b4b5b7235a2,Security,CC-SEC,active,false
+usr_943f76c52e91b675,Customer Success,CC-CS,active,false
+usr_0a3627dc5b6f3e20,Operations,CC-OPS,active,false
+usr_ba2fcfab5c62a553,Engineering,CC-ENG,active,false
+usr_84b089268d04e446,Data,CC-DATA,active,false
+usr_5c05d81accdcc660,Product,CC-PROD,active,false
+usr_3e015b31cd739b93,Security,CC-SEC,active,false
+usr_f55c005b48052ce0,Customer Success,CC-CS,active,false
+usr_a6b7e3f375efc0a1,Operations,CC-OPS,active,false
+usr_0f0e5bc92dc3b963,Engineering,CC-ENG,active,false
+usr_c249c743dab363e2,Data,CC-DATA,active,false
+usr_f72690540262075b,Product,CC-PROD,active,false
+usr_ce58453b82225504,Security,CC-SEC,active,true
+usr_3a1a590866ae5186,Customer Success,CC-CS,active,false
+usr_fdbe16a2b842cb15,Operations,CC-OPS,active,false
+usr_fd35eb0ae24e6c75,Engineering,CC-ENG,active,false
+usr_f7a1328670d38d71,Data,CC-DATA,active,false
+usr_4e87fa5165f1226f,Product,CC-PROD,active,false
+usr_89a864799eacf55f,Security,CC-SEC,active,false
+usr_26f1944b03174a42,Customer Success,CC-CS,active,false
+usr_5f106861e6097afc,Operations,CC-OPS,active,false
+usr_d4dc0c0f4429801b,Engineering,CC-ENG,active,false
+usr_2f357f0f3d8f2023,Data,CC-DATA,active,false
+usr_8961fdcc6e577f9f,Product,CC-PROD,active,false
+usr_5e136ea6a196b6f5,Security,CC-SEC,active,false
+usr_c352e560db370c1a,Customer Success,CC-CS,active,false
+usr_5d4809c35eb7d809,Operations,CC-OPS,active,false
+usr_3b445af42dad7f4d,Engineering,CC-ENG,active,false
+usr_09d8042a9070b431,Data,CC-DATA,active,false
+usr_07e8ccf4ee220b01,Product,CC-PROD,active,false
+usr_f2b781bce8077d2c,Security,CC-SEC,active,false
+usr_0d0fca2acfaff5fa,Customer Success,CC-CS,active,false
+usr_1ed644a5a3852c09,Operations,CC-OPS,active,false
+usr_2d45dcba27e0d3e5,Engineering,CC-ENG,active,false
+usr_d832bea74651c602,Data,CC-DATA,active,false
+usr_a838cd73eb35fcb6,Product,CC-PROD,active,true
+usr_04014ebea6aa521c,Security,CC-SEC,active,false
+usr_e4f3d5abd481bb1a,Customer Success,CC-CS,active,false
+usr_0aa42de2417d0666,Operations,CC-OPS,active,false
+usr_adcd77bb6d4fe937,Engineering,CC-ENG,active,false
+usr_93eaf7ae7ace28f0,Data,CC-DATA,active,false
+usr_cbcc3a6826c37bc7,Product,CC-PROD,active,false
+usr_7d99d434d32f0b32,Security,CC-SEC,active,false
+usr_c4f2dfed944afbcd,Customer Success,CC-CS,active,false
+usr_fdcea6cc7c5adf4f,Operations,CC-OPS,active,false
+usr_049f8ba4fffadeb0,Engineering,CC-ENG,active,false
+usr_1fd18aea4d0782ca,Data,CC-DATA,active,false
+usr_215416220f92dacf,Product,CC-PROD,active,false
+usr_e215eb4a87c68819,Security,CC-SEC,active,false
+usr_6dce80f8d6f7251a,Customer Success,CC-CS,active,false
+usr_213c5b1e635fb9b7,Operations,CC-OPS,active,false
+usr_1178b78f8e9f6521,Engineering,CC-ENG,active,false
+usr_c526a6b2a791d704,Data,CC-DATA,active,false
+usr_1d8d1fd494d4e8a7,Product,CC-PROD,active,false
+usr_01a0fcf3735115af,Security,CC-SEC,active,false
+usr_b632811806f75490,Customer Success,CC-CS,active,false
+usr_9f1bae2babe83075,Operations,CC-OPS,active,false
+usr_2acc3e88163caad3,Engineering,CC-ENG,active,false
+usr_6a972a02625c7936,Data,CC-DATA,active,true
+usr_bf273011849a8eb0,Product,CC-PROD,active,false
+usr_4b602158defc20b5,Security,CC-SEC,active,false
+usr_f70ee9299c3c7b49,Customer Success,CC-CS,active,false
+usr_0914e0a2fba47173,Operations,CC-OPS,active,false
+usr_7b895ccf001fe470,Engineering,CC-ENG,active,false
+usr_41ec4a5d88d74bfa,Data,CC-DATA,active,false
+usr_09ec7fec6c424172,Product,CC-PROD,active,false
+usr_66932d002a1ba743,Security,CC-SEC,active,false
+usr_179aca6e85b32dbf,Customer Success,CC-CS,active,false
+usr_d74a9fac6d470baa,Operations,CC-OPS,active,false
+usr_f350610b423a1783,Engineering,CC-ENG,active,false
+usr_82bba5f489431fed,Data,CC-DATA,active,false
+usr_66d1e4d9254db044,Product,CC-PROD,active,false
+usr_3ff8915a8fe07f26,Security,CC-SEC,active,false
+usr_97780be4bbf61c65,Customer Success,CC-CS,active,false
+usr_d61a05c2612c6d82,Operations,CC-OPS,active,false
+usr_346f63e0e2c7303b,Engineering,CC-ENG,leaving,false
+usr_ecf6a2e9cb68574a,Data,CC-DATA,leaving,false
+usr_692e8cefd12cef4f,Product,CC-PROD,leaving,false
+usr_5e9eecf52fc6597d,Security,CC-SEC,leaving,false

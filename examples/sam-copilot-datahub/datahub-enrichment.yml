@@ -1,0 +1,10 @@
+source:
+  type: csv-enricher
+  config:
+    filename: examples/sam-copilot-datahub/metadata-enrichment.csv
+    write_semantics: PATCH
+
+sink:
+  type: datahub-rest
+  config:
+    server: http://localhost:8080

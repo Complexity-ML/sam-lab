@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-07-26T00:00:00.000Z",
+  "product": "GitHub Copilot Business",
+  "privacy": {
+    "synthetic": true,
+    "directIdentifiers": false,
+    "userKey": "deterministic SHA-256 pseudonym"
+  },
+  "seats": {
+    "purchased": 300,
+    "assigned": 250,
+    "unassigned": 50,
+    "active30d": 178,
+    "inactive30To59d": 30,
+    "inactive60d": 36,
+    "neverActive": 6,
+    "reclaimCandidates": 42,
+    "criticalReclaimCandidates": 1
+  },
+  "cost": {
+    "currency": "USD",
+    "monthlyUnitCost": 19,
+    "annualUnitCost": 228,
+    "annualSpend": 68400,
+    "activeGapAnnualized": 27816,
+    "eligibleReclaimAnnualized": 9348
+  }
+}

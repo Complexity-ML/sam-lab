@@ -30,6 +30,15 @@ describe('optional judge-readable presets', () => {
     expect(preset.nodes.some((node) => node.data.kind === 'review')).toBe(true)
   })
 
+  it('binds the Copilot optimization example to a profiled DataHub asset with downstream decisions', () => {
+    const preset = loadPipelinePreset('license-reclamation')
+    const source = preset.nodes[0]
+    expect(source?.data.datahubUrn).toBe('urn:li:dataset:(urn:li:dataPlatform:postgres,sam-copilot-demo.sam_copilot.sam_mart.license_utilization,PROD)')
+    expect(source?.data.datahubTags).toEqual(expect.arrayContaining(['SAM', 'PSEUDONYMIZED', 'LICENSE_USAGE']))
+    expect(source?.data.datahubDownstream?.map((asset) => asset.name)).toEqual(['reclaim_candidates', 'renewal_risk'])
+    expect(preset.nodes.find((node) => node.data.kind === 'impact')?.data.description).toContain('USD 9,348')
+  })
+
   it('shows the judge-readable ML chain from impact evidence to an explicit risk context', () => {
     const preset = loadPipelinePreset('schema-drift')
     const risk = preset.nodes.find((node) => node.data.kind === 'risk')

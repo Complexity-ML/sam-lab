@@ -1,0 +1,2 @@
+product_key,vendor,product,plan_type,purchased_seats,monthly_unit_cost,currency,renewal_date,contract_owner,approved,captured_at
+github-copilot-business,GitHub,GitHub Copilot,business,300,19,USD,2026-10-15,Developer Platform,true,2026-07-26
