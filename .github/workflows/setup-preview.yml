@@ -1,6 +1,14 @@
 name: Build SAM LAB Setup installers
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/setup-preview.yml'
+      - 'apps/bootstrap-installer/**'
+      - 'install-sam-lab-macos.sh'
+      - 'package.json'
+      - 'package-lock.json'
   workflow_dispatch:
 
 permissions:
