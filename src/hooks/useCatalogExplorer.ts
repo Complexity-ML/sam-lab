@@ -1,5 +1,5 @@
 import { useCallback, useRef, type Dispatch, type SetStateAction } from 'react'
-import { governanceGapIssues, hasDataIncident, hasGovernanceGap, inspectCatalogInParallel, inspectWithBoundedRetry, isInspectionUnavailable, mergeCatalogProgress, rankCatalogCandidateUrns, rankCatalogRiskCandidateUrns, resetCatalogRetryState, resolveAdaptiveCatalogConcurrency, shouldCallAgentForCatalog, shouldOpenCatalogConnectivityIncident } from '../domain/catalog-explorer'
+import { catalogIdentityKey, governanceGapIssues, hasDataIncident, hasGovernanceGap, inspectCatalogInParallel, inspectWithBoundedRetry, isInspectionUnavailable, mergeCatalogProgress, rankCatalogCandidates, rankCatalogRiskCandidates, resetCatalogRetryState, resolveAdaptiveCatalogConcurrency, shouldCallAgentForCatalog, shouldOpenCatalogConnectivityIncident } from '../domain/catalog-explorer'
 import { catalogExplorerCheckpointScope, parseCatalogExplorerPolicy } from '../domain/catalog-explorer-policy'
 import type { DataHubAssetSummary, DataHubEvidence } from '../domain/datahub'
 import type { CatalogInspection } from '../domain/catalog-connectors'
@@ -105,26 +105,13 @@ export function useCatalogExplorer(options: {
     const policy = parseCatalogExplorerPolicy(input.explorer.data.rule)
     const workerPolicy = input.worker ? parseWorkerPolicy(input.worker.data.rule) : undefined
     const focusedAsset = policy.scope === 'dataset' && policy.datasetUrn
-      ? input.assets.find((asset) => asset.urn === policy.datasetUrn) ?? {
-          urn: policy.datasetUrn,
-          assetRef: policy.datasetUrn,
-          connectorId: 'datahub',
-          sourceSystem: 'DataHub',
-          name: policy.datasetUrn.split(',').at(-2)?.split('.').at(-1) ?? 'Focused dataset',
-          platform: 'unknown',
-          environment: 'PROD',
-          description: 'Focused dataset selected in Catalog Explorer.',
-          owners: [],
-          tags: [],
-          fields: [],
-          qualityStatus: 'unavailable' as const,
-          upstream: [],
-          downstream: [],
-          freshness: { capturedAt: new Date(0).toISOString(), expiresAt: new Date(0).toISOString(), stale: true },
-        }
+      ? input.assets.find((asset) => asset.urn === policy.datasetUrn || asset.assetRef === policy.datasetUrn)
       : undefined
+    if (policy.scope === 'dataset' && policy.datasetUrn && !focusedAsset) {
+      throw new Error(`Focused catalog asset "${policy.datasetUrn}" is not present in discovery results; refusing to guess its connector.`)
+    }
     const assets = focusedAsset ? [focusedAsset] : input.assets
-    const assetByUrn = new Map(assets.map((asset) => [asset.urn, asset]))
+    const assetByIdentity = new Map(assets.map((asset) => [catalogIdentityKey(asset), asset]))
     catalogAssets.current.set(input.explorer.id, assets)
     const key = checkpointKey(input.explorer)
     await checkpointWrites.current.get(key)?.catch(() => undefined)
@@ -175,31 +162,20 @@ export function useCatalogExplorer(options: {
       datasets: previousProgress?.datasets ?? [],
     }, input.isCurrent, input.worker)
 
-    const explored = await inspectCatalogInParallel(assets, async (urn) => {
-      const asset = assetByUrn.get(urn)
-      // The summary path reads DataHub's aggregate dataset profile alongside
+    const explored = await inspectCatalogInParallel(assets, async (assetRef, connectorId) => {
+      const asset = assetByIdentity.get(catalogIdentityKey({ connectorId, assetRef, urn: assetRef }))
+      if (!asset) throw new Error(`Catalog identity not found for ${connectorId ?? 'unknown'}:${assetRef}`)
+      // The summary path reads the connector's aggregate dataset profile alongside
       // entity metadata. It never requests raw rows or sample values. Schema
       // and lineage stay reserved for a newly evidenced risk candidate below.
       const inspection = policy.cacheMode === 'refresh'
-        ? await inspectAsset(urn, true, asset?.connectorId, 'summary')
+        ? await inspectAsset(assetRef, true, connectorId, 'summary')
         : await inspectWithBoundedRetry(
-            urn,
-            (assetUrn, force) => inspectAsset(assetUrn, force, asset?.connectorId, 'summary'),
+            assetRef,
+            (candidateRef, force) => inspectAsset(candidateRef, force, connectorId, 'summary'),
             { retryUnavailable: policy.scope === 'dataset' },
           )
-      return {
-        asset: inspection.asset,
-        evidence: inspection.evidence.map((read) => ({
-          tool: read.tool,
-          urn,
-          capturedAt: read.capturedAt,
-          expiresAt: read.expiresAt,
-          status: read.status,
-          summary: read.summary,
-          cached: read.cached,
-          stale: read.stale,
-        })),
-      }
+      return inspection
     }, {
       concurrency,
       batchSize: configuredBatchSize,
@@ -220,28 +196,32 @@ export function useCatalogExplorer(options: {
     await persistProgress(key, explored.progress)
 
     const evidence: DataHubEvidence[] = explored.inspections.flatMap((inspection) => inspection.evidence)
-    const byUrn = new Map(assets.map((asset) => [asset.urn, asset]))
-    const inspectedByUrn = new Map(explored.inspections.map((inspection) => [inspection.asset.urn, inspection.asset]))
-    const riskUrns = rankCatalogRiskCandidateUrns(explored.progress)
-    const previousByUrn = new Map(previousProgress?.datasets.map((checkpoint) => [checkpoint.urn, checkpoint]) ?? [])
-    const hasNewRiskEvidence = riskUrns.some((urn) => {
-      const current = explored.progress.datasets.find((checkpoint) => checkpoint.urn === urn)
-      const previous = previousByUrn.get(urn)
+    const byIdentity = new Map(assets.map((asset) => [catalogIdentityKey(asset), asset]))
+    const inspectedByIdentity = new Map(explored.inspections.map((inspection) => [catalogIdentityKey(inspection.asset), inspection.asset]))
+    const riskCandidates = rankCatalogRiskCandidates(explored.progress)
+    const previousByIdentity = new Map(previousProgress?.datasets.map((checkpoint) => [catalogIdentityKey(checkpoint), checkpoint]) ?? [])
+    const hasNewRiskEvidence = riskCandidates.some((current) => {
+      const previous = previousByIdentity.get(catalogIdentityKey(current))
       return Boolean(current && (!previous || previous.fingerprint !== current.fingerprint))
     })
     const shouldCallAgent = shouldCallAgentForCatalog(previousProgress, explored.progress, hasNewRiskEvidence)
     const shouldSelectCandidate = shouldCallAgent || Boolean(input.bootstrapCandidate)
-    const rankedUrns = shouldSelectCandidate
-      ? riskUrns.length
-        ? riskUrns
-        : rankCatalogCandidateUrns(explored.progress)
+    const rankedCandidates = shouldSelectCandidate
+      ? riskCandidates.length
+        ? riskCandidates
+        : rankCatalogCandidates(explored.progress)
       : []
-    const candidateUrn = rankedUrns.find((urn) => inspectedByUrn.has(urn) || byUrn.has(urn))
-    let candidate = candidateUrn ? inspectedByUrn.get(candidateUrn) ?? byUrn.get(candidateUrn) : undefined
+    const candidateCheckpoint = rankedCandidates.find((checkpoint) => inspectedByIdentity.has(catalogIdentityKey(checkpoint)) || byIdentity.has(catalogIdentityKey(checkpoint)))
+    let candidate = candidateCheckpoint
+      ? inspectedByIdentity.get(catalogIdentityKey(candidateCheckpoint)) ?? byIdentity.get(catalogIdentityKey(candidateCheckpoint))
+      : undefined
     if (candidate) {
-      const checkpoint = explored.progress.datasets.find((dataset) => dataset.urn === candidate!.urn)
-      if (checkpoint && !evidence.some((read) => read.urn === checkpoint.urn && read.status === 'ok' && !read.stale)) {
+      const checkpoint = explored.progress.datasets.find((dataset) => catalogIdentityKey(dataset) === catalogIdentityKey(candidate!))
+      if (checkpoint && !evidence.some((read) => catalogIdentityKey(read) === catalogIdentityKey(checkpoint) && read.status === 'ok' && !read.stale)) {
         evidence.push({
+          connectorId: checkpoint.connectorId,
+          sourceSystem: checkpoint.sourceSystem,
+          assetRef: checkpoint.assetRef,
           tool: 'catalog_checkpoint',
           urn: checkpoint.urn,
           capturedAt: checkpoint.capturedAt,
@@ -283,7 +263,7 @@ export function useCatalogExplorer(options: {
         })
       })
       unavailable.forEach((dataset) => {
-        const asset = byUrn.get(dataset.urn)
+        const asset = byIdentity.get(catalogIdentityKey(dataset))
         const key = asset?.connectorId ?? asset?.sourceSystem ?? 'catalog'
         connectorGroups.set(key, [...(connectorGroups.get(key) ?? []), dataset])
       })
@@ -295,13 +275,13 @@ export function useCatalogExplorer(options: {
       const failedConnectorGroups = catalogConnectionUnavailable ? connectorGroups : new Map<string, typeof unavailable>()
       const recoveredDataIncidents = explored.inspections.flatMap((inspection) => {
         if (isInspectionUnavailable(inspection)) return []
-        const dataset = explored.progress.datasets.find((item) => item.urn === inspection.asset.urn)
-        const incidentKey = `catalog-explorer:${inspection.asset.urn}`
+        const dataset = explored.progress.datasets.find((item) => catalogIdentityKey(item) === catalogIdentityKey(inspection.asset))
+        const incidentKey = `catalog-explorer:${catalogIdentityKey(inspection.asset)}`
         if (!dataset || hasDataIncident(dataset) || !incidentSummaries.some((incident) => incident.incidentKey === incidentKey && incident.status !== 'resolved')) return []
         return [{ dataset, asset: inspection.asset, incidentKey }]
       })
       const governanceIncidents = explored.progress.datasets.filter(hasGovernanceGap).flatMap((dataset) => {
-        const incidentKey = `catalog-explorer:governance:${dataset.urn}`
+        const incidentKey = `catalog-explorer:governance:${catalogIdentityKey(dataset)}`
         const existing = incidentSummaries.find((incident) => incident.incidentKey === incidentKey && incident.status !== 'resolved')
         if (existing?.fingerprint === dataset.fingerprint) return []
         return [{
@@ -311,7 +291,7 @@ export function useCatalogExplorer(options: {
         }]
       })
       const dataIncidents = explored.progress.datasets.filter(hasDataIncident).flatMap((dataset) => {
-        const incidentKey = `catalog-explorer:${dataset.urn}`
+        const incidentKey = `catalog-explorer:${catalogIdentityKey(dataset)}`
         const existing = incidentSummaries.find((incident) => incident.incidentKey === incidentKey && incident.status !== 'resolved')
         if (existing?.fingerprint === dataset.fingerprint) return []
         const mostSevereSignal = [...(dataset.dataRiskSignals ?? [])].sort((left, right) => {
@@ -325,13 +305,13 @@ export function useCatalogExplorer(options: {
           severity: mostSevereSignal?.severity === 'critical' || mostSevereSignal?.severity === 'high' ? 'critical' as const : 'warning' as const,
           detail: dataset.dataRiskSignals?.length
             ? dataset.dataRiskSignals.map((signal) => signal.summary).join(' · ')
-            : dataset.issues.join(', ') || 'A fresh DataHub assertion reported a data-quality incident.',
+            : dataset.issues.join(', ') || 'A fresh catalog assertion reported a data-quality incident.',
         }]
       })
       const recoveredGovernanceIncidents = explored.inspections.flatMap((inspection) => {
         if (isInspectionUnavailable(inspection)) return []
-        const dataset = explored.progress.datasets.find((item) => item.urn === inspection.asset.urn)
-        const incidentKey = `catalog-explorer:governance:${inspection.asset.urn}`
+        const dataset = explored.progress.datasets.find((item) => catalogIdentityKey(item) === catalogIdentityKey(inspection.asset))
+        const incidentKey = `catalog-explorer:governance:${catalogIdentityKey(inspection.asset)}`
         if (!dataset || hasGovernanceGap(dataset) || !incidentSummaries.some((incident) => incident.incidentKey === incidentKey && incident.status !== 'resolved')) return []
         return [{ dataset, asset: inspection.asset, incidentKey }]
       })
@@ -345,9 +325,9 @@ export function useCatalogExplorer(options: {
             incidentKey: `catalog-explorer:connectivity:${connector}`,
             transition: 'opened' as const,
             severity: 'critical' as const,
-            title: `Catalog connection unavailable · ${byUrn.get(datasets[0]!.urn)?.sourceSystem ?? connector}`,
+            title: `Catalog connection unavailable · ${byIdentity.get(catalogIdentityKey(datasets[0]!))?.sourceSystem ?? connector}`,
             detail: `${datasets.length} dataset inspection(s) failed. The audit stopped before classifying unavailable metadata as dataset health.${firstErrors.length ? ` First errors: ${firstErrors.join(' | ')}` : ''}`,
-            sourceSystem: byUrn.get(datasets[0]!.urn)?.sourceSystem ?? 'SAM LAB connectivity',
+            sourceSystem: byIdentity.get(catalogIdentityKey(datasets[0]!))?.sourceSystem ?? 'SAM LAB connectivity',
             sourceRef: connector,
             fingerprint: datasets.map((dataset) => dataset.fingerprint).join(':'),
             cardId: input.explorer.id,
@@ -372,10 +352,10 @@ export function useCatalogExplorer(options: {
           title: `Data quality recovered · ${dataset.name}`,
           detail: 'A fresh bounded catalog inspection no longer reports the previous statistical anomaly or failing quality assertion. The previous incident remains available in history.',
           sourceSystem: asset.sourceSystem ?? 'Catalog',
-          sourceRef: dataset.urn,
+          sourceRef: dataset.assetRef ?? dataset.urn,
           fingerprint: dataset.fingerprint,
           cardId: input.explorer.id,
-          branchId: dataset.urn,
+          branchId: catalogIdentityKey(dataset),
         })),
         ...recoveredGovernanceIncidents.map(({ dataset, asset, incidentKey }) => logIncident({
           incidentKey,
@@ -384,10 +364,10 @@ export function useCatalogExplorer(options: {
           title: `Governance gap recovered · ${dataset.name}`,
           detail: 'A fresh bounded catalog inspection confirms that the previously missing ownership or classification metadata is now present.',
           sourceSystem: asset.sourceSystem ?? 'Catalog',
-          sourceRef: dataset.urn,
+          sourceRef: dataset.assetRef ?? dataset.urn,
           fingerprint: dataset.fingerprint,
           cardId: input.explorer.id,
-          branchId: dataset.urn,
+          branchId: catalogIdentityKey(dataset),
         })),
         ...governanceIncidents.map(({ dataset, incidentKey, transition }) => logIncident({
           incidentKey,
@@ -395,11 +375,11 @@ export function useCatalogExplorer(options: {
           severity: 'warning' as const,
           title: `Governance gap · ${dataset.name}`,
           detail: governanceGapIssues(dataset).join(', ') || 'Catalog governance metadata is incomplete.',
-          sourceSystem: byUrn.get(dataset.urn)?.sourceSystem ?? 'Catalog',
-          sourceRef: dataset.urn,
+          sourceSystem: byIdentity.get(catalogIdentityKey(dataset))?.sourceSystem ?? dataset.sourceSystem ?? 'Catalog',
+          sourceRef: dataset.assetRef ?? dataset.urn,
           fingerprint: dataset.fingerprint,
           cardId: input.explorer.id,
-          branchId: dataset.urn,
+          branchId: catalogIdentityKey(dataset),
         })),
         ...dataIncidents.map(({ dataset, incidentKey, transition, severity, detail }) => logIncident({
           incidentKey,
@@ -407,11 +387,11 @@ export function useCatalogExplorer(options: {
           severity,
           title: `Data value anomaly · ${dataset.name}`,
           detail,
-          sourceSystem: byUrn.get(dataset.urn)?.sourceSystem ?? 'Catalog',
-          sourceRef: dataset.urn,
+          sourceSystem: byIdentity.get(catalogIdentityKey(dataset))?.sourceSystem ?? dataset.sourceSystem ?? 'Catalog',
+          sourceRef: dataset.assetRef ?? dataset.urn,
           fingerprint: dataset.fingerprint,
           cardId: input.explorer.id,
-          branchId: dataset.urn,
+          branchId: catalogIdentityKey(dataset),
         })),
       ])
     }
@@ -422,7 +402,7 @@ export function useCatalogExplorer(options: {
       summaries: [
         `Catalog Explorer checkpoint ${explored.progress.inspected}/${explored.progress.total}; ${explored.progress.dataAudited ?? 0} aggregate profiles audited, ${explored.progress.dataAuditCoverageGaps ?? 0} profile coverage gaps, ${explored.progress.incidents} evidence-backed data incidents and ${explored.progress.failed} unavailable reads. Last batch used ${explored.progress.concurrency} workers in ${explored.progress.batchDurationMs ?? 0}ms. Continue from the versioned checkpoint without repeating completed dataset audits.`,
         ...explored.inspections.slice(0, 4).map((inspection) => {
-          const dataset = explored.progress.datasets.find((item) => item.urn === inspection.asset.urn)!
+          const dataset = explored.progress.datasets.find((item) => catalogIdentityKey(item) === catalogIdentityKey(inspection.asset))!
           return `${dataset.name} · ${dataset.status} · fields=${dataset.fieldCount} · owners=${dataset.ownerCount} · upstream=${dataset.upstreamCount} · downstream=${dataset.downstreamCount} · issues=${dataset.issues.join(', ') || 'none'}`
         }),
       ],

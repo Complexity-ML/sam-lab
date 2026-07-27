@@ -17,7 +17,7 @@ export interface QueryCheckPolicy {
   complete: boolean
 }
 
-export const defaultQueryCheckRule = 'connector=datahub | protocol=graphql | registry=connector_manifest | operation=profile.read | mode=read_only | variables=host_validated | timeout_ms=8000 | review=not_required | dry_run=not_applicable | rollback=not_applicable | response=bounded_aggregate_profile'
+export const defaultQueryCheckRule = 'connector=catalog | protocol=graphql | registry=connector_manifest | operation=profile.read | mode=read_only | variables=host_validated | timeout_ms=8000 | review=not_required | dry_run=not_applicable | rollback=not_applicable | response=bounded_aggregate_profile'
 
 function clauses(rule: string | undefined) {
   return new Map((rule ?? '').split(/\s*\|\s*/).flatMap((clause) => {

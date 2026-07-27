@@ -114,7 +114,7 @@ function nodePatch(action: AiAction, current?: PipelineNodeData): Partial<Pipeli
   if (effectiveKind === 'monitor') patch.rule = completeMonitorRule(action.rule, current?.kind === 'monitor' ? current.rule : undefined)
   else if (effectiveKind === 'explorer') patch.rule = text(action.rule, current?.kind === 'explorer' ? current.rule : 'scope=all_datasets | batch_size=8 | audit_concurrency=4 | cache=prefer | checkpoint=versioned | resume=true', 2_000)
   else if (effectiveKind === 'worker') patch.rule = text(action.rule, current?.kind === 'worker' ? current.rule : 'role=generic | batch_size=4 | max_concurrency=4 | retry=checkpoint | context=branch_only | merge=atomic', 2_000)
-  else if (effectiveKind === 'query') patch.rule = text(action.rule, current?.kind === 'query' ? current.rule : 'connector=datahub | protocol=graphql | registry=connector_manifest | operation=profile.read | mode=read_only | variables=host_validated | timeout_ms=8000 | review=not_required | dry_run=not_applicable | rollback=not_applicable | response=bounded_aggregate_profile', 2_000)
+  else if (effectiveKind === 'query') patch.rule = text(action.rule, current?.kind === 'query' ? current.rule : 'connector=catalog | protocol=graphql | registry=connector_manifest | operation=profile.read | mode=read_only | variables=host_validated | timeout_ms=8000 | review=not_required | dry_run=not_applicable | rollback=not_applicable | response=bounded_aggregate_profile', 2_000)
   else if (text(action.rule)) patch.rule = text(action.rule, '', 2_000)
   return patch
 }
@@ -157,7 +157,7 @@ export function materializeAiProposal(response: AiProposalResponse, nodes: Pipel
             : action.kind === 'worker'
               ? text(action.rule, 'role=generic | batch_size=4 | max_concurrency=4 | retry=checkpoint | context=branch_only | merge=atomic', 2_000)
               : action.kind === 'query'
-                ? text(action.rule, 'connector=datahub | protocol=graphql | registry=connector_manifest | operation=profile.read | mode=read_only | variables=host_validated | timeout_ms=8000 | review=not_required | dry_run=not_applicable | rollback=not_applicable | response=bounded_aggregate_profile', 2_000)
+                ? text(action.rule, 'connector=catalog | protocol=graphql | registry=connector_manifest | operation=profile.read | mode=read_only | variables=host_validated | timeout_ms=8000 | review=not_required | dry_run=not_applicable | rollback=not_applicable | response=bounded_aggregate_profile', 2_000)
             : text(action.rule, undefined, 2_000) || undefined,
         status: 'draft',
         schema: [],

@@ -53,7 +53,7 @@ describe('DataHub lineage impact', () => {
       onSelectNode={selectNode}
       onUpdate={vi.fn()}
       selected={selected}
-      workbenchAssets={{ 'urn:li:dataset:workbench-output': { nodeId: 'output-1', label: 'CRM output' } }}
+      workbenchAssets={{ 'datahub:urn:li:dataset:workbench-output': { nodeId: 'output-1', label: 'CRM output' } }}
     />)
 
     fireEvent.click(screen.getByRole('button', { name: /asset-0\s*Workbench card · CRM output/ }))

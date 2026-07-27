@@ -90,6 +90,7 @@ export function usePipelineInteractions(options: {
     if (!options.selected || options.selected.data.kind !== 'source') return
     const selected = options.selected
     const previousUrn = selected.data.datahubUrn
+    const previousConnectorId = selected.data.connectorId ?? (previousUrn ? 'datahub' : undefined)
     options.setNodes((current) => current.map((node) => node.id === selected.id ? {
       ...node,
       data: {
@@ -113,9 +114,9 @@ export function usePipelineInteractions(options: {
         status: asset.qualityStatus === 'failing' || asset.owners.length === 0 ? 'warning' : 'healthy',
       },
     } : node))
-    if (previousUrn && previousUrn !== asset.urn) void options.invalidateDataHubContext(previousUrn)
-    void options.invalidateDataHubContext(asset.urn)
-    options.setActivity(`${asset.name} bound atomically · ${asset.fields.length} fields · ${asset.downstream.length} downstream assets · fresh MCP read required before agent execution`)
+    if (previousConnectorId === 'datahub' && previousUrn && previousUrn !== asset.urn) void options.invalidateDataHubContext(previousUrn)
+    if ((asset.connectorId ?? 'datahub') === 'datahub') void options.invalidateDataHubContext(asset.urn)
+    options.setActivity(`${asset.name} bound atomically · ${asset.fields.length} fields · ${asset.downstream.length} downstream assets · fresh connector evidence required before agent execution`)
   }
 
   const deleteCard = (nodeId: string) => {

@@ -10,6 +10,7 @@ import { WorkspaceRecoveryModal } from './components/shared/WorkspaceRecoveryMod
 import type { AtomicPipelineRun } from './domain/atomic-execution'
 import { isAgentActionActivity } from './domain/activity'
 import { recordDiagnostic } from './domain/diagnostics'
+import { catalogIdentityKey } from './domain/catalog-explorer'
 import { layoutPipeline } from './domain/layout'
 import { initialEdges, initialNodes, pruneOrphanedCards, type AgentProposal, type PipelineNode } from './domain/pipeline'
 import { collectRiskImpactOverview, type RiskImpactItem } from './domain/risk-impact'
@@ -307,7 +308,9 @@ export default function App() {
           cards: nodes.length,
           edges: edges.length,
           versions: pipelineVersions.versions.length,
-          mcp: dataHub.connectionMode === 'connected' ? `MCP ${dataHub.mcpTransport} connected` : 'MCP offline',
+          mcp: dataHub.catalogConnectionMode === 'connected'
+            ? dataHub.connectionMode === 'connected' ? `DataHub ${dataHub.mcpTransport} connected` : 'Custom catalog connector verified'
+            : 'Catalog offline',
           model: `${ai.active.label} · ${ai.active.model}`,
         },
         onAsk: (question) => { void reviewAssistant.ask(question) },
@@ -315,7 +318,10 @@ export default function App() {
         onStop: reviewAssistant.stop,
       }}
       proposal={proposal}
-      relatedAssets={[...new Set(nodes.flatMap((node) => node.data.datahubUrn ? [node.data.datahubUrn] : []))]}
+      relatedAssets={[...new Set(nodes.flatMap((node) => {
+        const assetRef = node.data.assetRef ?? node.data.datahubUrn
+        return assetRef ? [assetRef] : []
+      }))]}
       revisionId={pipelineVersions.pendingVersionId}
       writebackAvailable={dataHub.connectionMode === 'connected' && dataHub.settings.writebackEnabled && dataHub.writebackAvailable}
       onApply={(writebackRequested) => { void player.approveAgentProposal(writebackRequested).then((applied) => { if (applied) setProposalReviewOpen(false) }) }}
@@ -460,7 +466,10 @@ export default function App() {
         : reportsOpen
           ? <aside aria-label="Incident reports" className="inspector-panel operations-panel" id="sam-lab-reports"><IncidentReportsView events={incidents.events} incidents={incidents.summaries} onClose={() => setReportsOpen(false)} onOpenProposal={() => setProposalReviewOpen(true)} onSelectCard={(nodeId) => { setSelectedId(nodeId); setReportsOpen(false); setInspectorReturn(undefined); setInspectorOpen(true) }} proposal={proposal?.incidentKey ? proposal : undefined} /></aside>
           : <aside aria-hidden={!inspectorOpen} aria-label="Card inspector" className={`inspector-panel ${inspectorOpen ? '' : 'is-closed'}`} id="sam-lab-inspector" inert={!inspectorOpen} tabIndex={-1}>
-            <CardInspectorView dataHubConnected={dataHub.catalogConnectionMode === 'connected'} errorCount={errors.length} issues={issues} onBack={inspectorReturn ? () => { setInspectorOpen(false); if (inspectorReturn === 'risks') setRisksOpen(true); else setResultsOpen(true); setInspectorReturn(undefined) } : undefined} onBindDataHubSource={pipeline.bindDataHubSource} onClose={() => { setInspectorReturn(undefined); setInspectorOpen(false) }} onFocusDiagram={pipeline.focusIncidentDiagram} onInspectDataHubAsset={dataHub.inspectAsset} onOpenDataHubSettings={() => { setSettingsSection('connections'); setSettingsOpen(true) }} onSearchDataHub={dataHub.searchAssets} onSelectNode={setSelectedId} onUpdate={pipeline.updateSelected} returnLabel={inspectorReturn === 'risks' ? 'Risks' : inspectorReturn === 'results' ? 'Results' : undefined} selected={selected} workbenchAssets={Object.fromEntries(nodes.flatMap((node) => (node.data.assetRef ?? node.data.datahubUrn) ? [[node.data.assetRef ?? node.data.datahubUrn!, { nodeId: node.id, label: node.data.label }]] : []))} />
+            <CardInspectorView dataHubConnected={dataHub.catalogConnectionMode === 'connected'} errorCount={errors.length} issues={issues} onBack={inspectorReturn ? () => { setInspectorOpen(false); if (inspectorReturn === 'risks') setRisksOpen(true); else setResultsOpen(true); setInspectorReturn(undefined) } : undefined} onBindDataHubSource={pipeline.bindDataHubSource} onClose={() => { setInspectorReturn(undefined); setInspectorOpen(false) }} onFocusDiagram={pipeline.focusIncidentDiagram} onInspectDataHubAsset={dataHub.inspectAsset} onOpenDataHubSettings={() => { setSettingsSection('connections'); setSettingsOpen(true) }} onSearchDataHub={dataHub.searchAssets} onSelectNode={setSelectedId} onUpdate={pipeline.updateSelected} returnLabel={inspectorReturn === 'risks' ? 'Risks' : inspectorReturn === 'results' ? 'Results' : undefined} selected={selected} workbenchAssets={Object.fromEntries(nodes.flatMap((node) => {
+              const assetRef = node.data.assetRef ?? node.data.datahubUrn
+              return assetRef ? [[catalogIdentityKey({ connectorId: node.data.connectorId, assetRef, urn: assetRef }), { nodeId: node.id, label: node.data.label }]] : []
+            }))} />
           </aside>}
     </section>
 

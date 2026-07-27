@@ -8,7 +8,7 @@ const scenarios: Array<{ id: PipelinePresetId; expectedFinding: string }> = [
   { id: 'broken-governance', expectedFinding: 'missing-owner-governance-source' },
 ]
 
-const samScenarios: PipelinePresetId[] = ['license-reclamation', 'compliance-exposure', 'renewal-optimization']
+const samScenarios: PipelinePresetId[] = ['license-reclamation', 'compliance-exposure', 'renewal-optimization', 'sam-evidence-gap']
 
 describe('optional judge-readable presets', () => {
   it.each(scenarios)('loads $id only when explicitly selected and exposes its expected validation', ({ id, expectedFinding }) => {

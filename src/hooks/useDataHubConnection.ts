@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { notifyError } from '../domain/toasts'
 import { recordDiagnostic } from '../domain/diagnostics'
 import type { CatalogConnectorManifest, CatalogConnectorSummary } from '../domain/catalog-connectors'
@@ -24,7 +24,7 @@ export function useDataHubConnection(setActivity: (message: string) => void) {
   const [writebackAvailable, setWritebackAvailable] = useState(false)
   const [settings, setSettings] = useState<DataHubConnectionSettings>(disconnectedSettings)
   const [catalogConnectors, setCatalogConnectors] = useState<CatalogConnectorSummary[]>([])
-  const connectorByAssetRef = useRef(new Map<string, string>())
+  const [verifiedConnectorIds, setVerifiedConnectorIds] = useState<Set<string>>(new Set())
 
   const applyStatus = (status: Awaited<ReturnType<NonNullable<typeof window.dataLab>['getDataHubMcpStatus']>>) => {
     setConnectionMode(status.mode)
@@ -77,19 +77,23 @@ export function useDataHubConnection(setActivity: (message: string) => void) {
   }
 
   const searchAssets = async (query: string) => {
-    if (!window.dataLab) throw new Error('DataHub search requires the Electron application')
+    if (!window.dataLab) throw new Error('Catalog search requires the Electron application')
     const assets = window.dataLab.searchCatalogAssets ? await window.dataLab.searchCatalogAssets(query) : await window.dataLab.searchDataHubAssets(query)
-    assets.forEach((asset) => connectorByAssetRef.current.set(asset.assetRef ?? asset.urn, asset.connectorId ?? 'datahub'))
+    setVerifiedConnectorIds((current) => new Set([...current, ...assets.map((asset) => asset.connectorId ?? 'datahub')]))
     return assets
   }
 
-  const inspectAsset = async (urn: string, force = false, connectorId?: string, mode: 'summary' | 'deep' = 'deep') => {
-    if (!window.dataLab) throw new Error('DataHub inspection requires the Electron application')
-    const resolvedConnector = connectorId ?? connectorByAssetRef.current.get(urn) ?? 'datahub'
-    return window.dataLab.inspectCatalogAsset ? window.dataLab.inspectCatalogAsset(resolvedConnector, urn, force, mode) : window.dataLab.inspectDataHubAsset(urn, force, mode).then((inspection) => ({
-      asset: { ...inspection.asset, connectorId: 'datahub', sourceSystem: 'DataHub', assetRef: urn },
-      evidence: inspection.evidence.map((read) => ({ ...read, connectorId: 'datahub', sourceSystem: 'DataHub', assetRef: urn, urn, tool: read.name })),
+  const inspectAsset = async (assetRef: string, force = false, connectorId?: string, mode: 'summary' | 'deep' = 'deep') => {
+    if (!window.dataLab) throw new Error('Catalog inspection requires the Electron application')
+    const resolvedConnector = connectorId ?? 'datahub'
+    const inspection = window.dataLab.inspectCatalogAsset
+      ? await window.dataLab.inspectCatalogAsset(resolvedConnector, assetRef, force, mode)
+      : await window.dataLab.inspectDataHubAsset(assetRef, force, mode).then((legacyInspection) => ({
+        asset: { ...legacyInspection.asset, connectorId: 'datahub', sourceSystem: 'DataHub', assetRef },
+        evidence: legacyInspection.evidence.map((read) => ({ ...read, connectorId: 'datahub', sourceSystem: 'DataHub', assetRef, urn: assetRef, tool: read.name })),
     }))
+    setVerifiedConnectorIds((current) => new Set(current).add(resolvedConnector))
+    return inspection
   }
 
   const saveCatalogConnector = async (payload: CatalogConnectorManifest & { token?: string; clearToken?: boolean }) => {
@@ -105,13 +109,25 @@ export function useDataHubConnection(setActivity: (message: string) => void) {
     if (!window.dataLab.deleteCatalogConnector) throw new Error('This SAM LAB build does not support custom catalog connections')
     const saved = await window.dataLab.deleteCatalogConnector(id)
     setCatalogConnectors(saved)
+    setVerifiedConnectorIds((current) => {
+      const next = new Set(current)
+      next.delete(id)
+      return next
+    })
     return saved
   }
 
   const testCatalogConnector = async (id: string) => {
     if (!window.dataLab) throw new Error('Catalog connections require the Electron application')
     if (!window.dataLab.testCatalogConnector) throw new Error('This SAM LAB build does not support custom catalog connections')
-    return window.dataLab.testCatalogConnector(id)
+    const result = await window.dataLab.testCatalogConnector(id)
+    setVerifiedConnectorIds((current) => {
+      const next = new Set(current)
+      if (result.connected) next.add(id)
+      else next.delete(id)
+      return next
+    })
+    return result
   }
 
   const invalidateContext = async (urn?: string) => {
@@ -124,7 +140,7 @@ export function useDataHubConnection(setActivity: (message: string) => void) {
     return window.dataLab.writeDataHubDecision(payload)
   }
 
-  const catalogConnectionMode: ConnectionMode = connectionMode === 'connected' || catalogConnectors.some((connector) => !connector.builtIn && connector.enabled) ? 'connected' : 'demo'
+  const catalogConnectionMode: ConnectionMode = connectionMode === 'connected' || verifiedConnectorIds.size > 0 ? 'connected' : 'demo'
 
   return { catalogConnectionMode, catalogConnectors, connectionMode, deleteCatalogConnector, inspectAsset, invalidateContext, mcpMessage, mcpTransport, recordAudit, saveCatalogConnector, saveSettings, searchAssets, settings, syncDataHub, testCatalogConnector, writebackAvailable, writeDecision }
 }

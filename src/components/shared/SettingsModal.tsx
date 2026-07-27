@@ -558,7 +558,7 @@ export function SettingsModal(props: SettingsModalProps) {
           </section>
           <section className="settings-section">
             <div className="settings-section-title"><span>Custom catalog.v1 connections</span><small>{catalogConnectors.filter((connector) => !connector.builtIn).length} configured</small></div>
-            <p className="settings-feedback">A connector stays outside the graph. It must expose normalized <code>catalog_search</code>/<code>catalog_inspect</code> MCP tools or the HTTP endpoints <code>/catalog/search</code> and <code>/catalog/assets</code>.</p>
+            <p className="settings-feedback">A connector stays outside the graph and is read-only in this release. It must expose normalized <code>catalog_search</code>/<code>catalog_inspect</code> MCP tools or the HTTP endpoints <code>/catalog/search</code> and <code>/catalog/assets</code>.</p>
             <div className="model-grid provider-grid">
               {catalogConnectors.filter((connector) => !connector.builtIn).map((connector) => <div className="catalog-connector-card" key={connector.id}>
                 <span><strong>{connector.name}</strong><small>{connector.kind} · {connector.id}</small><code>{connector.enabled ? 'enabled' : 'disabled'} · {connector.tokenConfigured ? 'secure token' : 'no token'}</code></span>
@@ -606,7 +606,7 @@ export function SettingsModal(props: SettingsModalProps) {
             <button onClick={() => onLoadPreset('license-reclamation')} type="button"><Database size={21} /><strong>Copilot license optimization</strong><small>Analyze a DataHub-backed 250-seat Copilot dataset and review USD 9,348 in annual savings.</small></button>
             <button onClick={() => onLoadPreset('compliance-exposure')} type="button"><KeyRound size={21} /><strong>Entitlement compliance</strong><small>Compare assignments to contracts and route material exposure to review.</small></button>
             <button onClick={() => onLoadPreset('renewal-optimization')} type="button"><Network size={21} /><strong>Renewal optimization</strong><small>Rank upcoming renewals by cost, utilization and evidence coverage.</small></button>
-            <button onClick={() => onLoadPreset('broken-governance')} type="button"><AlertTriangle size={21} /><strong>Evidence gap lab</strong><small>Explore how missing ownership and failing evidence block a decision.</small></button>
+            <button onClick={() => onLoadPreset('sam-evidence-gap')} type="button"><AlertTriangle size={21} /><strong>SAM evidence gap</strong><small>Explore how missing software ownership and entitlement evidence block a decision.</small></button>
           </section>
         </article>}
 

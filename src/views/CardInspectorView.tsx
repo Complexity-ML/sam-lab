@@ -9,6 +9,7 @@ import type { DataHubAssetSummary } from '../domain/datahub'
 import { cardLabels, type PipelineNode } from '../domain/pipeline'
 import { cardRoleContracts } from '../domain/agent-runner'
 import { parseRiskAssessmentRule } from '../domain/risk-assessment'
+import { catalogIdentityKey } from '../domain/catalog-explorer'
 import type { ValidationIssue } from '../validation'
 
 interface CardInspectorViewProps {
@@ -18,7 +19,7 @@ interface CardInspectorViewProps {
   dataHubConnected: boolean
   workbenchAssets: Record<string, { nodeId: string; label: string }>
   onBindDataHubSource(asset: DataHubAssetSummary): void
-  onInspectDataHubAsset(urn: string, force?: boolean): Promise<{ asset: DataHubAssetSummary }>
+  onInspectDataHubAsset(assetRef: string, force?: boolean, connectorId?: string): Promise<{ asset: DataHubAssetSummary }>
   onOpenDataHubSettings(): void
   onSearchDataHub(query: string): Promise<DataHubAssetSummary[]>
   onBack?(): void
@@ -59,7 +60,7 @@ export function CardInspectorView({ dataHubConnected, errorCount, issues, onBack
       {selected.data.kind !== 'source' && selected.data.assetRef !== undefined && <label>Catalog asset reference<textarea className="code-input" rows={3} value={selected.data.assetRef} onChange={(event) => onUpdate({ assetRef: event.target.value })} /></label>}
       {(selected.data.assetRef || selected.data.datahubUrn) && <section className="datahub-governance-signals"><h3>Governance signals</h3><dl><div><dt>Domain</dt><dd>{selected.data.datahubDomain ?? 'Unavailable'}</dd></div><div><dt>Quality</dt><dd>{selected.data.datahubQuality ?? 'Unavailable'}</dd></div><div><dt>Ownership</dt><dd>{selected.data.owner === 'Unassigned' ? 'Missing · blocks publication' : selected.data.owner}</dd></div></dl><div>{selected.data.datahubTags?.length ? selected.data.datahubTags.map((tag) => <span key={tag}>{tag}</span>) : <small>Tags unavailable</small>}</div></section>}
       {(selected.data.assetRef || selected.data.datahubUrn) && <section className="datahub-lineage-impact"><h3>Lineage impact</h3><div><span>↑ {selected.data.datahubUpstream?.length ?? 0} upstream</span><span>↓ {selected.data.datahubDownstream?.length ?? 0} downstream</span></div>{visibleLineage.map((asset) => {
-        const workbench = workbenchAssets[asset.urn]
+        const workbench = workbenchAssets[catalogIdentityKey({ connectorId: selected.data.connectorId, assetRef: asset.urn, urn: asset.urn })]
         const className = `${asset.sensitive ? 'is-sensitive ' : ''}${workbench ? 'is-workbench' : 'is-external'}`.trim()
         return workbench
           ? <button className={className} key={`${asset.urn}-${asset.name}`} onClick={() => onSelectNode(workbench.nodeId)} type="button"><code>{asset.name}</code><small>Workbench card · {workbench.label}</small></button>

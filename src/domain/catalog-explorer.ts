@@ -7,6 +7,14 @@ export interface CatalogInspection {
   evidence: DataHubEvidence[]
 }
 
+export function catalogIdentityKey(value: {
+  connectorId?: string
+  assetRef?: string
+  urn: string
+}) {
+  return `${value.connectorId ?? 'datahub'}:${value.assetRef ?? value.urn}`
+}
+
 const dataIncidentIssues = new Set(['quality failing'])
 const governanceIssues = new Set(['owner missing', 'tags missing'])
 const sensitivePattern = /pii|sensitive|personal|gdpr|secret|credential/i
@@ -56,12 +64,13 @@ export function mergeCatalogProgress(
 ): CatalogExplorationProgress | undefined {
   if (!left) return right
   if (!right) return left
-  const byUrn = new Map(left.datasets.map((checkpoint) => [checkpoint.urn, checkpoint]))
+  const byIdentity = new Map(left.datasets.map((checkpoint) => [catalogIdentityKey(checkpoint), checkpoint]))
   right.datasets.forEach((checkpoint) => {
-    const previous = byUrn.get(checkpoint.urn)
-    byUrn.set(checkpoint.urn, previous ? preferCheckpoint(previous, checkpoint) : checkpoint)
+    const key = catalogIdentityKey(checkpoint)
+    const previous = byIdentity.get(key)
+    byIdentity.set(key, previous ? preferCheckpoint(previous, checkpoint) : checkpoint)
   })
-  const datasets = [...byUrn.values()]
+  const datasets = [...byIdentity.values()]
   const latest = Date.parse(right.checkpointAt) >= Date.parse(left.checkpointAt) ? right : left
   const total = Math.max(left.total, right.total, datasets.length)
   const retryLimit = latest.connectorRetryLimit ?? defaultCatalogRetryLimit
@@ -138,6 +147,10 @@ export function shouldCallAgentForCatalog(
 }
 
 export function rankCatalogCandidateUrns(progress: CatalogExplorationProgress) {
+  return rankCatalogCandidates(progress).map((checkpoint) => checkpoint.urn)
+}
+
+export function rankCatalogCandidates(progress: CatalogExplorationProgress) {
   const score = (checkpoint: CatalogDatasetCheckpoint) =>
     softwareAssetPriority(checkpoint) * 1_000_000
     + (checkpoint.status === 'healthy' ? 1_000 : checkpoint.status === 'warning' ? 100 : 0)
@@ -149,7 +162,6 @@ export function rankCatalogCandidateUrns(progress: CatalogExplorationProgress) {
   return progress.datasets
     .filter((checkpoint) => checkpoint.status !== 'unavailable' && isSoftwareAssetCheckpoint(checkpoint))
     .sort((left, right) => score(right) - score(left) || left.urn.localeCompare(right.urn))
-    .map((checkpoint) => checkpoint.urn)
 }
 
 /**
@@ -172,9 +184,16 @@ export function rankCatalogRiskCandidateUrns(
   progress: CatalogExplorationProgress,
   excludedUrns: string[] = [],
 ) {
-  const excluded = new Set(excludedUrns)
+  return rankCatalogRiskCandidates(progress, excludedUrns).map((checkpoint) => checkpoint.urn)
+}
+
+export function rankCatalogRiskCandidates(
+  progress: CatalogExplorationProgress,
+  excludedIdentities: string[] = [],
+) {
+  const excluded = new Set(excludedIdentities)
   const excludedFamilies = new Set(progress.datasets
-    .filter((checkpoint) => excluded.has(checkpoint.urn))
+    .filter((checkpoint) => excluded.has(catalogIdentityKey(checkpoint)) || excluded.has(checkpoint.urn))
     .map((checkpoint) => catalogDatasetFamilyKey(checkpoint.name))
     .filter(Boolean))
   const score = (checkpoint: CatalogDatasetCheckpoint) =>
@@ -185,11 +204,11 @@ export function rankCatalogRiskCandidateUrns(
 
   return progress.datasets
     .filter((checkpoint) => checkpoint.status !== 'unavailable'
+      && !excluded.has(catalogIdentityKey(checkpoint))
       && !excluded.has(checkpoint.urn)
       && !excludedFamilies.has(catalogDatasetFamilyKey(checkpoint.name))
       && isSoftwareAssetCheckpoint(checkpoint))
     .sort((left, right) => score(right) - score(left) || left.urn.localeCompare(right.urn))
-    .map((checkpoint) => checkpoint.urn)
 }
 
 export function catalogHasPendingAutonomousWork(
@@ -205,13 +224,23 @@ export function selectCatalogCandidateUrn(
   progress: CatalogExplorationProgress,
   preferredUrns: string[] = [],
 ) {
+  return selectCatalogCandidate(progress, preferredUrns)?.urn
+}
+
+export function selectCatalogCandidate(
+  progress: CatalogExplorationProgress,
+  preferredIdentities: string[] = [],
+) {
   const available = new Set(
     progress.datasets
       .filter((checkpoint) => checkpoint.status !== 'unavailable' && isSoftwareAssetCheckpoint(checkpoint))
-      .map((checkpoint) => checkpoint.urn),
+      .flatMap((checkpoint) => [catalogIdentityKey(checkpoint), checkpoint.urn]),
   )
-  return preferredUrns.find((urn) => available.has(urn))
-    ?? rankCatalogCandidateUrns(progress)[0]
+  const preferred = preferredIdentities.find((identity) => available.has(identity))
+  if (preferred) {
+    return progress.datasets.find((checkpoint) => catalogIdentityKey(checkpoint) === preferred || checkpoint.urn === preferred)
+  }
+  return rankCatalogCandidates(progress)[0]
 }
 
 function fingerprint(value: string) {
@@ -258,6 +287,9 @@ export function checkpointForInspection(inspection: CatalogInspection): CatalogD
       ? 'complete'
       : 'coverage_gap'
   return {
+    connectorId: asset.connectorId,
+    sourceSystem: asset.sourceSystem,
+    assetRef: asset.assetRef,
     urn: asset.urn,
     name: asset.name,
     status,
@@ -298,7 +330,7 @@ export function checkpointForInspection(inspection: CatalogInspection): CatalogD
 
 export async function inspectCatalogInParallel(
   assets: DataHubAssetSummary[],
-  inspect: (urn: string) => Promise<CatalogInspection>,
+  inspect: (assetRef: string, connectorId?: string) => Promise<CatalogInspection>,
   options: {
     batchSize?: number
     cacheMode?: 'prefer' | 'refresh'
@@ -317,16 +349,16 @@ export async function inspectCatalogInParallel(
   const requestedConcurrency = Math.max(1, Math.min(8, Math.floor(options.concurrency ?? 4)))
   const configuredBatchSize = Math.max(1, Math.min(32, Math.floor(options.batchSize ?? options.maxInspections ?? (assets.length || 1))))
   const inspections: CatalogInspection[] = []
-  const previous = new Map((options.previous ?? []).map((checkpoint) => [checkpoint.urn, checkpoint]))
+  const previous = new Map((options.previous ?? []).map((checkpoint) => [catalogIdentityKey(checkpoint), checkpoint]))
   const checkpoints: CatalogDatasetCheckpoint[] = assets.flatMap((asset) => {
-    const checkpoint = previous.get(asset.urn)
+    const checkpoint = previous.get(catalogIdentityKey(asset))
     return checkpoint ? [checkpoint] : []
   })
   // New catalog entries must not queue behind one pathological entity forever.
   // Unavailable checkpoints remain retryable, but only after every never-read
   // dataset has received its first bounded inspection.
   const uninspected = assets.filter((asset) => {
-    const checkpoint = previous.get(asset.urn)
+    const checkpoint = previous.get(catalogIdentityKey(asset))
     return !checkpoint || !checkpoint.dataAuditStatus
   })
   // Dataset read failures are local collection gaps. Give each unavailable
@@ -334,7 +366,7 @@ export async function inspectCatalogInParallel(
   // had a turn, instead of opening a connector-wide circuit.
   const datasetRetryLimit = Math.max(1, Math.min(10, Math.floor(options.retryLimit ?? defaultCatalogRetryLimit)))
   const retryable = assets.filter((asset) => {
-    const checkpoint = previous.get(asset.urn)
+    const checkpoint = previous.get(catalogIdentityKey(asset))
     if (!checkpoint) return false
     return (checkpoint.dataAuditStatus === 'unavailable' || checkpoint.status === 'unavailable')
       && (checkpoint.attemptCount ?? 1) < datasetRetryLimit
@@ -345,10 +377,10 @@ export async function inspectCatalogInParallel(
   const pending = [...uninspected, ...retryable]
   const inspectionBudget = Math.max(1, Math.min(configuredBatchSize, Math.floor(options.maxInspections ?? configuredBatchSize), pending.length || 1))
   const scheduled = pending.slice(0, inspectionBudget)
-  const assetOrder = new Map(assets.map((asset, index) => [asset.urn, index]))
-  const orderedCheckpoints = () => [...checkpoints].sort((left, right) => (assetOrder.get(left.urn) ?? 0) - (assetOrder.get(right.urn) ?? 0))
+  const assetOrder = new Map(assets.map((asset, index) => [catalogIdentityKey(asset), index]))
+  const orderedCheckpoints = () => [...checkpoints].sort((left, right) => (assetOrder.get(catalogIdentityKey(left)) ?? 0) - (assetOrder.get(catalogIdentityKey(right)) ?? 0))
   const remainingWork = () => assets.filter((asset) => {
-    const checkpoint = checkpoints.find((candidate) => candidate.urn === asset.urn)
+    const checkpoint = checkpoints.find((candidate) => catalogIdentityKey(candidate) === catalogIdentityKey(asset))
     if (!checkpoint) return true
     if (!checkpoint.dataAuditStatus) return true
     return (checkpoint.dataAuditStatus === 'unavailable' || checkpoint.status === 'unavailable')
@@ -368,7 +400,7 @@ export async function inspectCatalogInParallel(
   let effectiveConcurrency = requestedConcurrency
 
   const upsertCheckpoint = (checkpoint: CatalogDatasetCheckpoint) => {
-    const index = checkpoints.findIndex((candidate) => candidate.urn === checkpoint.urn)
+    const index = checkpoints.findIndex((candidate) => catalogIdentityKey(candidate) === catalogIdentityKey(checkpoint))
     if (index < 0) checkpoints.push(checkpoint)
     else checkpoints[index] = checkpoint
   }
@@ -420,16 +452,21 @@ export async function inspectCatalogInParallel(
   const inspectBatch = async (batch: DataHubAssetSummary[]) => {
     const results = await Promise.all(batch.map(async (asset) => {
       try {
-        const inspection = await inspect(asset.urn)
+        const inspection = asset.connectorId
+          ? await inspect(asset.assetRef ?? asset.urn, asset.connectorId)
+          : await inspect(asset.assetRef ?? asset.urn)
         inspections.push(inspection)
         const checkpoint = checkpointForInspection(inspection)
-        const prior = previous.get(asset.urn)
+        const prior = previous.get(catalogIdentityKey(asset))
         checkpoint.attemptCount = (prior?.attemptCount ?? 0) + 1
         checkpoint.lastAttemptAt = checkpoint.capturedAt
         return { checkpoint, inspection }
       } catch (error) {
         const capturedAt = new Date().toISOString()
         return { checkpoint: {
+          connectorId: asset.connectorId,
+          sourceSystem: asset.sourceSystem,
+          assetRef: asset.assetRef ?? asset.urn,
           urn: asset.urn,
           name: asset.name,
           status: 'unavailable' as const,
@@ -440,10 +477,10 @@ export async function inspectCatalogInParallel(
           upstreamCount: asset.upstream.length,
           downstreamCount: asset.downstream.length,
           issues: [`inspection failed: ${error instanceof Error ? error.message : String(error)}`],
-          fingerprint: fingerprint(`${asset.urn}:inspection-failed`),
+          fingerprint: fingerprint(`${catalogIdentityKey(asset)}:inspection-failed`),
           capturedAt,
           expiresAt: capturedAt,
-          attemptCount: (previous.get(asset.urn)?.attemptCount ?? 0) + 1,
+          attemptCount: (previous.get(catalogIdentityKey(asset))?.attemptCount ?? 0) + 1,
           lastAttemptAt: capturedAt,
         } }
       }

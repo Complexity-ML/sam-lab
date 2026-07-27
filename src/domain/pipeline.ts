@@ -5,6 +5,7 @@ import { defaultRiskAssessmentRule } from './risk-assessment'
 import { defaultQueryCheckRule } from './query-check'
 import { workerPolicyRule, defaultWorkerPolicy } from './worker-policy'
 import type { DataValueRiskSignal, LineageAssetSummary } from './catalog-connectors'
+import type { SoftwareAsset } from './sam'
 
 export type CardKind = 'control' | 'explorer' | 'worker' | 'query' | 'source' | 'profile' | 'analysis' | 'impact' | 'risk' | 'patch' | 'monitor' | 'parallel' | 'diagram' | 'split' | 'decision' | 'transform' | 'review' | 'validation' | 'output'
 export type PipelineStatus = 'healthy' | 'warning' | 'blocked' | 'draft'
@@ -42,6 +43,9 @@ export interface DatasetAggregateAudit {
 }
 
 export interface DataProfileSnapshot {
+  connectorId?: string
+  sourceSystem?: string
+  assetRef?: string
   sourceUrn: string
   capturedAt: string
   expiresAt: string
@@ -96,6 +100,9 @@ export interface CatalogExplorationProgress {
 }
 
 export interface CatalogDatasetCheckpoint {
+  connectorId?: string
+  sourceSystem?: string
+  assetRef?: string
   urn: string
   name: string
   status: 'healthy' | 'warning' | 'unavailable'
@@ -142,6 +149,7 @@ export interface PipelineNodeData extends Record<string, unknown> {
   datahubFreshness?: { capturedAt: string; expiresAt: string; stale: boolean }
   datahubUpstream?: LineageAssetSummary[]
   datahubDownstream?: LineageAssetSummary[]
+  samAsset?: SoftwareAsset
   profile?: DataProfileSnapshot
   exploration?: CatalogExplorationProgress
   patchScope?: 'graph-only'
@@ -349,7 +357,7 @@ export const customerActivationEdges: Edge[] = [
 export const initialNodes: PipelineNode[] = []
 export const initialEdges: Edge[] = []
 
-export type PipelinePresetId = 'empty' | 'customer-activation' | 'pii-masking' | 'schema-drift' | 'broken-governance' | 'license-reclamation' | 'compliance-exposure' | 'renewal-optimization'
+export type PipelinePresetId = 'empty' | 'customer-activation' | 'pii-masking' | 'schema-drift' | 'broken-governance' | 'sam-evidence-gap' | 'license-reclamation' | 'compliance-exposure' | 'renewal-optimization'
 
 export function loadPipelinePreset(preset: PipelinePresetId): { title: string; nodes: PipelineNode[]; edges: Edge[] } {
   if (preset === 'empty') return { title: 'Untitled pipeline', nodes: [], edges: [] }

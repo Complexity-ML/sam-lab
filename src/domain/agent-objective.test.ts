@@ -16,8 +16,10 @@ describe('bounded agent objectives', () => {
     })
   })
 
-  it('accepts data work and source-label matches while rejecting unrelated noise', () => {
-    expect(resolveAgentObjective('Trace lineage for the billing table', { hasGraph: true, matchedSource: false }).accepted).toBe(true)
+  it('accepts SAM work and source-label matches while rejecting generic data work', () => {
+    expect(resolveAgentObjective('Audit software license renewals', { hasGraph: true, matchedSource: false }).accepted).toBe(true)
+    expect(resolveAgentObjective('Trace lineage for the billing table', { hasGraph: true, matchedSource: false }).accepted).toBe(false)
+    expect(resolveAgentObjective('Improve this workflow graph', { hasGraph: true, matchedSource: false }).accepted).toBe(true)
     expect(resolveAgentObjective('Customers 360', { hasGraph: true, matchedSource: true }).accepted).toBe(true)
     expect(resolveAgentObjective('tell me a joke about bananas', { hasGraph: true, matchedSource: false }).accepted).toBe(false)
   })

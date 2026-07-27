@@ -95,6 +95,18 @@ describe('bounded data profile memory', () => {
     expect(dataProfileEvidence(next.addedNodes[0].data.profile!).evidence[0]).toMatchObject({ tool: 'data_profile_memory', cached: true })
   })
 
+  it('keeps profiles with the same asset reference isolated by connector', () => {
+    const next = proposal()
+    const first = { ...asset, connectorId: 'catalog-a', sourceSystem: 'Catalog A', assetRef: 'software/licenses', urn: 'software/licenses' }
+    const second = { ...asset, connectorId: 'catalog-b', sourceSystem: 'Catalog B', assetRef: 'software/licenses', urn: 'software/licenses' }
+
+    addDataProfileToProposal(next, [], first)
+    addDataProfileToProposal(next, [], second)
+
+    expect(next.addedNodes).toHaveLength(2)
+    expect(next.addedNodes.map((node) => node.data.profile?.connectorId)).toEqual(['catalog-a', 'catalog-b'])
+  })
+
   it('replaces a duplicated source schema with a reference to fresh profile memory', () => {
     const next = proposal()
     addDataProfileToProposal(next, [], asset)

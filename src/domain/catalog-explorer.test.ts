@@ -107,6 +107,25 @@ describe('Catalog Explorer', () => {
     expect(result.progress.datasets.map((dataset) => dataset.urn)).toEqual(assets.map((candidate) => candidate.urn))
   })
 
+  it('keeps identical asset references isolated by connector identity', async () => {
+    const sharedUrn = 'software/licenses'
+    const assets = [
+      { ...asset(1), connectorId: 'catalog-a', sourceSystem: 'Catalog A', assetRef: sharedUrn, urn: sharedUrn, name: 'licenses-a' },
+      { ...asset(2), connectorId: 'catalog-b', sourceSystem: 'Catalog B', assetRef: sharedUrn, urn: sharedUrn, name: 'licenses-b' },
+    ]
+    const inspect = vi.fn(async (assetRef: string, connectorId?: string) => {
+      const matched = assets.find((candidate) => candidate.assetRef === assetRef && candidate.connectorId === connectorId)
+      return inspection(matched!)
+    })
+
+    const result = await inspectCatalogInParallel(assets, inspect, { concurrency: 2 })
+
+    expect(inspect).toHaveBeenCalledWith(sharedUrn, 'catalog-a')
+    expect(inspect).toHaveBeenCalledWith(sharedUrn, 'catalog-b')
+    expect(result.progress.datasets).toHaveLength(2)
+    expect(result.progress.datasets.map((checkpoint) => checkpoint.connectorId)).toEqual(['catalog-a', 'catalog-b'])
+  })
+
   it('does not restart a completed audit just because its earliest evidence expired', async () => {
     const assets = Array.from({ length: 4 }, (_, index) => asset(index))
     const expired = assets.map((value) => ({

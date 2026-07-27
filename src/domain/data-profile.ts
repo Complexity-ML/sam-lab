@@ -4,7 +4,7 @@ import type { AgentProposal, DataProfileSnapshot, PipelineNode, PipelineNodeData
 const maximumProfiledFields = 32
 const maximumAnomalies = 8
 const profileKeys = new Set([
-  'sourceUrn', 'capturedAt', 'expiresAt', 'stale', 'platform', 'environment', 'quality',
+  'connectorId', 'sourceSystem', 'assetRef', 'sourceUrn', 'capturedAt', 'expiresAt', 'stale', 'platform', 'environment', 'quality',
   'fieldCount', 'profiledFields', 'sensitiveFieldCount', 'upstreamCount', 'downstreamCount',
   'anomalies', 'aggregateAudit', 'tokenEstimate', 'storage',
 ])
@@ -132,6 +132,9 @@ export function createDataProfileSnapshot(asset: DataHubAssetSummary): DataProfi
     hostVerified: true,
   }
   const profileWithoutEstimate = {
+    connectorId: asset.connectorId,
+    sourceSystem: asset.sourceSystem,
+    assetRef: asset.assetRef,
     sourceUrn: boundedText(asset.urn, 2_000),
     capturedAt: asset.freshness.capturedAt,
     expiresAt: asset.freshness.expiresAt,
@@ -177,7 +180,7 @@ export function dataProfileEvidence(profile: DataProfileSnapshot): { summaries: 
       `Profile anomalies: ${profile.anomalies.join(' ') || 'none'}`,
       `Aggregate dataset audit: ${profile.aggregateAudit.status}; rows=${profile.aggregateAudit.rowCount ?? 'unavailable'}; profiled_fields=${profile.aggregateAudit.profiledFieldCount}; value_risks=${profile.aggregateAudit.riskSignals.length}; raw_rows_read=false.`,
     ],
-    evidence: [{ tool: 'data_profile_memory', urn: profile.sourceUrn, capturedAt: profile.capturedAt, expiresAt: profile.expiresAt, status: 'ok', summary, cached: true, stale: profile.stale }],
+    evidence: [{ connectorId: profile.connectorId, sourceSystem: profile.sourceSystem, assetRef: profile.assetRef, tool: 'data_profile_memory', urn: profile.sourceUrn, capturedAt: profile.capturedAt, expiresAt: profile.expiresAt, status: 'ok', summary, cached: true, stale: profile.stale }],
   }
 }
 
@@ -196,35 +199,41 @@ function profilePatch(asset: DataHubAssetSummary): Partial<PipelineNodeData> {
   }
 }
 
-function profileId(urn: string) {
+function profileIdentity(value: Pick<DataHubAssetSummary, 'connectorId' | 'assetRef' | 'urn'> | Pick<DataProfileSnapshot, 'connectorId' | 'assetRef' | 'sourceUrn'>) {
+  const urn = 'urn' in value ? value.urn : value.sourceUrn
+  return `${value.connectorId ?? 'datahub'}:${value.assetRef ?? urn}`
+}
+
+function profileId(identity: string) {
   let hash = 2166136261
-  for (const character of urn) hash = Math.imul(hash ^ character.charCodeAt(0), 16777619)
+  for (const character of identity) hash = Math.imul(hash ^ character.charCodeAt(0), 16777619)
   return `profile-${(hash >>> 0).toString(36)}`
 }
 
 export function addDataProfileToProposal(proposal: AgentProposal, currentNodes: PipelineNode[], asset: DataHubAssetSummary, sourceNode?: PipelineNode) {
   const patch = profilePatch(asset)
-  const existing = currentNodes.find((node) => node.data.kind === 'profile' && node.data.profile?.sourceUrn === asset.urn)
+  const assetIdentity = profileIdentity(asset)
+  const existing = currentNodes.find((node) => node.data.kind === 'profile' && node.data.profile && profileIdentity(node.data.profile) === assetIdentity)
   if (existing) {
-    const redundant = proposal.addedNodes.find((node) => node.data.kind === 'profile' && (!node.data.profile || node.data.profile.sourceUrn === asset.urn))
+    const redundant = proposal.addedNodes.find((node) => node.data.kind === 'profile' && (!node.data.profile || profileIdentity(node.data.profile) === assetIdentity))
     if (redundant) {
       proposal.addedNodes = proposal.addedNodes.filter((node) => node.id !== redundant.id)
       proposal.addedEdges = proposal.addedEdges.filter((edge) => edge.source !== redundant.id && edge.target !== redundant.id)
     }
     const update = proposal.updatedNodes.find((candidate) => candidate.nodeId === existing.id)
     if (update) update.patch = { ...update.patch, ...patch, kind: 'profile' }
-    else proposal.updatedNodes.push({ nodeId: existing.id, patch: { ...patch, kind: 'profile' }, reason: 'Refresh compact profile memory after a trusted DataHub read.' })
+    else proposal.updatedNodes.push({ nodeId: existing.id, patch: { ...patch, kind: 'profile' }, reason: 'Refresh compact profile memory after a trusted catalog read.' })
     return existing.id
   }
 
-  const proposed = proposal.addedNodes.find((node) => node.data.kind === 'profile' && (!node.data.profile || node.data.profile.sourceUrn === asset.urn))
+  const proposed = proposal.addedNodes.find((node) => node.data.kind === 'profile' && (!node.data.profile || profileIdentity(node.data.profile) === assetIdentity))
   if (proposed) {
     proposed.data = { ...proposed.data, ...patch, kind: 'profile' }
     return proposed.id
   }
 
   const anchor = sourceNode ?? proposal.addedNodes.find((node) => node.data.kind === 'source')
-  const baseId = profileId(asset.urn)
+  const baseId = profileId(assetIdentity)
   const usedIds = new Set([...currentNodes, ...proposal.addedNodes].map((node) => node.id))
   let id = baseId
   let suffix = 2

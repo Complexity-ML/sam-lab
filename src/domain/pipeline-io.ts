@@ -1,5 +1,6 @@
 import type { Edge } from '@xyflow/react'
 import type { PipelineNode, PipelineNodeData, CardKind, CatalogExplorationProgress, DataProfileSnapshot, SchemaField } from './pipeline'
+import type { SamComplianceStatus, SoftwareAsset } from './sam'
 import type { PipelineVersion } from './versioning'
 import type { DataHubEvidence } from './datahub'
 
@@ -36,7 +37,7 @@ function cleanFields(value: unknown): SchemaField[] {
 function cleanProfile(value: unknown, trustHostProof: boolean): DataProfileSnapshot | undefined {
   if (!value || typeof value !== 'object') return undefined
   const source = value as Record<string, unknown>
-  if (typeof source.sourceUrn !== 'string' || !source.sourceUrn.startsWith('urn:li:') || typeof source.capturedAt !== 'string' || typeof source.expiresAt !== 'string') return undefined
+  if (typeof source.sourceUrn !== 'string' || !source.sourceUrn.trim() || typeof source.capturedAt !== 'string' || typeof source.expiresAt !== 'string') return undefined
   const quality = ['healthy', 'failing', 'unavailable'].includes(String(source.quality)) ? source.quality as DataProfileSnapshot['quality'] : 'unavailable'
   const storage = source.storage && typeof source.storage === 'object' && !Array.isArray(source.storage) ? source.storage as Record<string, unknown> : {}
   const verifiedBoundedStorage = storage.kind === 'bounded-metadata'
@@ -76,6 +77,9 @@ function cleanProfile(value: unknown, trustHostProof: boolean): DataProfileSnaps
     && rawAudit.rawRowsRead === false
     && rawAudit.hostVerified === true
   return {
+    connectorId: typeof source.connectorId === 'string' && /^[a-z][a-z0-9-]{1,31}$/.test(source.connectorId) ? source.connectorId : undefined,
+    sourceSystem: typeof source.sourceSystem === 'string' ? redactExportText(source.sourceSystem).slice(0, 120) : undefined,
+    assetRef: typeof source.assetRef === 'string' ? redactExportText(source.assetRef).slice(0, 2_000) : undefined,
     sourceUrn: source.sourceUrn.slice(0, 2_000), capturedAt: source.capturedAt, expiresAt: source.expiresAt, stale: source.stale === true,
     platform: typeof source.platform === 'string' ? source.platform.slice(0, 160) : '', environment: typeof source.environment === 'string' ? source.environment.slice(0, 80) : '', quality,
     fieldCount: Math.max(0, Math.min(100_000, Number.isInteger(source.fieldCount) ? Number(source.fieldCount) : profiledFields.length)), profiledFields,
@@ -111,7 +115,7 @@ function cleanExploration(value: unknown): CatalogExplorationProgress | undefine
   const datasets = Array.isArray(source.datasets) ? source.datasets.slice(0, 2_000).flatMap((value) => {
     if (!value || typeof value !== 'object') return []
     const item = value as Record<string, unknown>
-    if (typeof item.urn !== 'string' || !item.urn.startsWith('urn:li:dataset:')) return []
+    if (typeof item.urn !== 'string' || !item.urn.trim()) return []
     const itemStatus = ['healthy', 'warning', 'unavailable'].includes(String(item.status))
       ? item.status as 'healthy' | 'warning' | 'unavailable'
       : 'unavailable'
@@ -133,6 +137,9 @@ function cleanExploration(value: unknown): CatalogExplorationProgress | undefine
       }]
     }) : []
     return [{
+      connectorId: typeof item.connectorId === 'string' && /^[a-z][a-z0-9-]{1,31}$/.test(item.connectorId) ? item.connectorId : undefined,
+      sourceSystem: typeof item.sourceSystem === 'string' ? redactExportText(item.sourceSystem).slice(0, 120) : undefined,
+      assetRef: typeof item.assetRef === 'string' ? redactExportText(item.assetRef).slice(0, 2_000) : undefined,
       urn: item.urn.slice(0, 2_000),
       name: typeof item.name === 'string' ? redactExportText(item.name).slice(0, 240) : item.urn.slice(0, 240),
       status: itemStatus,
@@ -227,6 +234,7 @@ function cleanNodeData(data: Record<string, unknown>, trustHostProof: boolean): 
     datahubDomain: typeof data.datahubDomain === 'string' ? data.datahubDomain.slice(0, 160) : undefined,
     datahubTags: Array.isArray(data.datahubTags) ? data.datahubTags.filter((tag): tag is string => typeof tag === 'string').slice(0, 100) : undefined,
     datahubQuality: quality,
+    samAsset: cleanSoftwareAsset(data.samAsset),
     profile: cleanProfile(data.profile, trustHostProof),
     exploration: cleanExploration(data.exploration),
     patchScope: kind === 'patch' ? 'graph-only' : undefined,
@@ -237,6 +245,44 @@ function cleanNodeData(data: Record<string, unknown>, trustHostProof: boolean): 
     explorerMode: kind === 'explorer' ? 'catalog-fanout' : undefined,
     workerMode: kind === 'worker' ? 'bounded-execution' : undefined,
     pinned: data.pinned === true,
+  }
+}
+
+function cleanSoftwareAsset(value: unknown): SoftwareAsset | undefined {
+  if (!value || typeof value !== 'object') return undefined
+  const source = value as Record<string, unknown>
+  const complianceStatus = String(source.complianceStatus) as SamComplianceStatus
+  const boundedNumber = (key: string) => {
+    const parsed = Number(source[key])
+    return Number.isFinite(parsed) ? Math.max(0, Math.min(parsed, 1_000_000_000)) : undefined
+  }
+  const purchasedSeats = boundedNumber('purchasedSeats')
+  const assignedSeats = boundedNumber('assignedSeats')
+  const activeSeats = boundedNumber('activeSeats')
+  const annualUnitCost = boundedNumber('annualUnitCost')
+  if (
+    typeof source.id !== 'string'
+    || typeof source.product !== 'string'
+    || typeof source.vendor !== 'string'
+    || typeof source.owner !== 'string'
+    || purchasedSeats === undefined
+    || assignedSeats === undefined
+    || activeSeats === undefined
+    || annualUnitCost === undefined
+    || !['compliant', 'attention', 'non-compliant', 'unknown'].includes(complianceStatus)
+  ) return undefined
+  return {
+    id: redactExportText(source.id).slice(0, 160),
+    product: redactExportText(source.product).slice(0, 160),
+    vendor: redactExportText(source.vendor).slice(0, 160),
+    owner: redactExportText(source.owner).slice(0, 160),
+    purchasedSeats,
+    assignedSeats,
+    activeSeats,
+    annualUnitCost,
+    renewalDate: typeof source.renewalDate === 'string' ? source.renewalDate.slice(0, 40) : undefined,
+    complianceStatus,
+    approved: source.approved === true,
   }
 }
 

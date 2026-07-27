@@ -2,6 +2,7 @@ import type { PipelineNode } from './pipeline'
 import type { RiskImpactItemKind, RiskImpactOverview } from './risk-impact'
 import { parseRiskAssessmentRule, type RiskSeverity } from './risk-assessment'
 import { isSoftwareAssetCheckpoint, isSoftwareAssetGraph, isSoftwareAssetNode, isSoftwareAssetText } from './sam-asset'
+import { analyzeSoftwarePortfolio, type SamPortfolioMetrics } from './sam'
 
 export interface AnalysisReportRisk {
   id: string
@@ -39,6 +40,7 @@ export interface AnalysisReport {
   contextRisks: AnalysisReportRisk[]
   evidence: AnalysisReportEvidence[]
   decisionFacts: { label: string; value: string }[]
+  samMetrics?: SamPortfolioMetrics
   limitations: string[]
 }
 
@@ -90,6 +92,8 @@ export function buildAnalysisReport(nodes: PipelineNode[], overview?: RiskImpact
   const sources = nodes.filter((node) => node.data.kind === 'source')
   const softwareAssetReport = isSoftwareAssetGraph(nodes)
   const decisionFacts = softwareDecisionFacts(nodes)
+  const structuredSoftwareAssets = nodes.flatMap((node) => node.data.samAsset ? [node.data.samAsset] : [])
+  const samMetrics = structuredSoftwareAssets.length ? analyzeSoftwarePortfolio(structuredSoftwareAssets) : undefined
   const exploration = nodes
     .filter((node) => node.data.kind === 'explorer' && node.data.exploration)
     .map((node) => node.data.exploration!)
@@ -241,6 +245,7 @@ export function buildAnalysisReport(nodes: PipelineNode[], overview?: RiskImpact
     contextRisks,
     evidence,
     decisionFacts,
+    samMetrics,
     limitations,
   }
 }

@@ -40,6 +40,16 @@ export function AnalysisResultsView({ nodes, onClose, onOpenProposal, onSelectCa
         </section>
       </>}
 
+      {report.samMetrics && <>
+        <div className="reports-heading"><strong>Deterministic SAM calculation</strong><small>{report.samMetrics.assetCount} structured asset{report.samMetrics.assetCount === 1 ? '' : 's'}</small></div>
+        <section className="analysis-results-overview analysis-license-facts">
+          <div><strong>{report.samMetrics.annualSpend.toLocaleString()}</strong><small>Annual spend</small></div>
+          <div><strong>{report.samMetrics.unusedSeats}</strong><small>Inactive capacity</small></div>
+          <div><strong>{report.samMetrics.annualizedWaste.toLocaleString()}</strong><small>Annualized capacity cost</small></div>
+          <div><strong>{report.samMetrics.findings.length}</strong><small>Calculated findings</small></div>
+        </section>
+      </>}
+
       {proposal && <button className="report-proposal" onClick={onOpenProposal} type="button"><Sparkles size={16} /><span><small>PROPOSED SOLUTION</small><strong>{proposal.title}</strong><p>{proposal.summary}</p></span></button>}
 
       <div className="reports-heading"><strong>Material SAM findings</strong><small>{report.risks.length} finding{report.risks.length === 1 ? '' : 's'}</small></div>

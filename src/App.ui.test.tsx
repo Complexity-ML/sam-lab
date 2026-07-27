@@ -258,7 +258,7 @@ describe('visual pipeline workspace regressions', () => {
         expect.stringContaining('Selected schema: purchased_seats:number'),
       ]),
     }))
-    expect(api.recordIncidentEvent).not.toHaveBeenCalledWith(expect.objectContaining({ incidentKey: 'source-discovery:datahub', transition: 'opened' }))
+    expect(api.recordIncidentEvent).not.toHaveBeenCalledWith(expect.objectContaining({ incidentKey: 'source-discovery:catalog', transition: 'opened' }))
   })
 
   it('builds from the first usable catalog dataset before continuing the remaining audit locally', async () => {
@@ -310,7 +310,7 @@ describe('visual pipeline workspace regressions', () => {
     await waitFor(() => expect(api.runChatGPTProposal).toHaveBeenCalledTimes(1))
     expect(inspectedBeforeProposal).toEqual(new Set([assets[0]!.urn]))
     expect(api.recordIncidentEvent).not.toHaveBeenCalledWith(expect.objectContaining({
-      incidentKey: 'source-discovery:datahub',
+      incidentKey: 'source-discovery:catalog',
       transition: 'opened',
     }))
   })
@@ -805,7 +805,7 @@ describe('visual pipeline workspace regressions', () => {
     const flow = screen.getByTestId('pipeline-flow')
     expect(within(flow).getByText('Intended Dataset')).toBeTruthy()
     expect(within(flow).getByText('Verify and Bind Dataset')).toBeTruthy()
-    expect(within(flow).getByText('DataHub Catalog Explorer')).toBeTruthy()
+    expect(within(flow).getByText('Catalog Explorer')).toBeTruthy()
     expect(within(flow).getByText('Catalog Audit Worker')).toBeTruthy()
     expect(flow.querySelectorAll('[data-node-id]')).toHaveLength(5)
     expect(screen.getAllByText('5 cards', { exact: false }).length).toBeGreaterThan(0)

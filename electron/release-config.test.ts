@@ -54,6 +54,8 @@ describe('macOS release configuration', () => {
 
   it('publishes the source-first Setup for native macOS and Windows runners', () => {
     const workflow = readFileSync(join(root, '.github/workflows/setup-preview.yml'), 'utf8')
+    const shellInstaller = readFileSync(join(root, 'install-sam-lab-macos.sh'), 'utf8')
+    const readme = readFileSync(join(root, 'README.md'), 'utf8')
     const setupCore = readFileSync(join(root, 'apps/bootstrap-installer/src-tauri/src/lib.rs'), 'utf8')
     const setupUi = readFileSync(join(root, 'apps/bootstrap-installer/ui/components/hero-section.js'), 'utf8')
     expect(workflow).toContain('workflow_dispatch:')
@@ -65,6 +67,10 @@ describe('macOS release configuration', () => {
     expect(workflow).toContain('gh release create')
     expect(workflow).toContain('--prerelease')
     expect(setupCore).toContain('Complexity-ML/sam-lab')
+    expect(shellInstaller).toContain('REPOSITORY="Complexity-ML/sam-lab"')
+    expect(readme).toContain('github.com/Complexity-ML/sam-lab/releases/download/setup-latest')
+    expect(shellInstaller).not.toContain('Complexity-ML/labo-sam')
+    expect(readme).not.toContain('Complexity-ML/labo-sam')
     expect(setupCore).toContain('package:mac:dir')
     expect(setupCore).toContain('package:win:dir')
     expect(setupCore).toContain('Installing locked JavaScript dependencies')

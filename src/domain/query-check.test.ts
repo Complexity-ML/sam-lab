@@ -5,7 +5,7 @@ describe('Query Check contract', () => {
   it('accepts a registered bounded aggregate profile read', () => {
     expect(parseQueryCheckRule(defaultQueryCheckRule)).toMatchObject({
       complete: true,
-      connector: 'datahub',
+      connector: 'catalog',
       protocol: 'graphql',
       operation: 'profile.read',
       mode: 'read_only',

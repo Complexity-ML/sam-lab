@@ -128,6 +128,12 @@ describe('analysis report', () => {
       { label: 'Purchased seats', value: '300' },
       { label: 'Annual savings', value: 'USD 9,348' },
     ]))
+    expect(report.samMetrics).toMatchObject({
+      assetCount: 1,
+      annualSpend: 68_400,
+      unusedSeats: 122,
+      annualizedWaste: 27_816,
+    })
     expect(report.risks[0]).toMatchObject({ title: 'Copilot reclamation risk', domain: 'governance', affectedAssets: 42 })
   })
 

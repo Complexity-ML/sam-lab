@@ -2,7 +2,7 @@
 
 set -euo pipefail
 
-REPOSITORY="Complexity-ML/labo-sam"
+REPOSITORY="Complexity-ML/sam-lab"
 RELEASE_TAG="setup-latest"
 CHANNEL="stable"
 

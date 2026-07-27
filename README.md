@@ -47,9 +47,20 @@ Open **Settings → Examples** to load an optional workflow:
 - **License reclamation** — find inactive seats, calculate annual waste and review a reclaim plan.
 - **Entitlement compliance** — compare assignments to purchased rights and route material exposure to a reviewer.
 - **Renewal optimization** — prioritize upcoming renewals using spend, utilization and evidence coverage.
-- **Evidence gap lab** — demonstrate how missing ownership or unreliable evidence blocks an unsafe conclusion.
+- **SAM evidence gap** — demonstrate how missing software ownership or entitlement evidence blocks an unsafe conclusion.
 
 Examples never replace the default blank workbench.
+
+## Catalog connections
+
+DataHub is the built-in catalog adapter, not a requirement. SAM LAB can search
+and inspect any enabled MCP or HTTP connector implementing
+`sam-lab.catalog.v1`. Assets are identified by both connector ID and asset
+reference so identical references from different catalogs remain isolated.
+
+Custom connectors are evidence-only in the current release. DataHub is the
+only adapter that currently exposes governed write-back, and that capability
+is disabled by default and always requires native human confirmation.
 
 ## Safety model
 
@@ -97,18 +108,18 @@ npm run build:electron
 SAM LAB includes a lightweight Tauri launcher in `apps/bootstrap-installer`. It installs the native Electron application from the selected GitHub source:
 
 - **Stable** installs the latest published SAM LAB release.
-- **Main** installs the newest commit from `Complexity-ML/labo-sam`.
+- **Main** installs the newest commit from `Complexity-ML/sam-lab`.
 
 Install and open Setup on an Apple Silicon or Intel Mac with one command:
 
 ```bash
-curl -fsSL https://github.com/Complexity-ML/labo-sam/releases/download/setup-latest/install-sam-lab-macos.sh | bash
+curl -fsSL https://github.com/Complexity-ML/sam-lab/releases/download/setup-latest/install-sam-lab-macos.sh | bash
 ```
 
 To preselect the newest `main` commit instead of Stable:
 
 ```bash
-curl -fsSL https://github.com/Complexity-ML/labo-sam/releases/download/setup-latest/install-sam-lab-macos.sh | bash -s -- --channel main
+curl -fsSL https://github.com/Complexity-ML/sam-lab/releases/download/setup-latest/install-sam-lab-macos.sh | bash -s -- --channel main
 ```
 
 The script detects the Mac architecture, downloads the matching checksum-verified Tauri helper, installs it without `sudo`, then opens the Setup window. The preview is unsigned and unnotarized, so macOS may still display a security confirmation.

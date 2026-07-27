@@ -47,7 +47,7 @@ export function ensureAutonomousSystemCards(nodes: PipelineNode[]) {
       ...explorer,
       data: {
         ...explorer.data,
-        label: 'DataHub Catalog Explorer',
+        label: 'Catalog Explorer',
         description: 'Discovers every governed dataset, audits metadata in parallel batches, checkpoints coverage and emits only evidence-backed incident branches.',
         owner: 'SAM LAB Agent',
         status: 'draft',

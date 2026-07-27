@@ -10,7 +10,7 @@ import type { AutonomyPolicy } from '../domain/autonomy-policy'
 import { policyForcesProposalReview } from '../domain/autonomy-policy'
 import { ensureAutonomousSystemCards } from '../domain/autonomous-system'
 import { classifyConnectivityFailure } from '../domain/connectivity'
-import { catalogHasPendingAutonomousWork, rankCatalogRiskCandidateUrns, selectCatalogCandidateUrn, shouldCallAgentForCatalog } from '../domain/catalog-explorer'
+import { catalogHasPendingAutonomousWork, catalogIdentityKey, rankCatalogRiskCandidates, selectCatalogCandidate, shouldCallAgentForCatalog } from '../domain/catalog-explorer'
 import { parseCatalogExplorerPolicy } from '../domain/catalog-explorer-policy'
 import type { DataHubAssetSummary, DataHubEvidence } from '../domain/datahub'
 import type { CatalogInspection } from '../domain/catalog-connectors'
@@ -233,15 +233,15 @@ export function useAutonomousPlayer(options: AutonomousPlayerOptions) {
     const hasArmedMonitor = nodes.some((node) => node.data.kind === 'monitor')
     const checkpointExplorer = nodes.find((node) => node.data.kind === 'explorer' && node.data.explorerMode === 'catalog-fanout')
     const checkpointProgress = checkpointExplorer?.data.exploration
-    const representedCatalogUrns = nodes.flatMap((node) => {
+    const representedCatalogIdentities = nodes.flatMap((node) => {
       if (node.data.kind !== 'source') return []
       const urn = node.data.assetRef ?? node.data.datahubUrn
-      return urn ? [urn] : []
+      return urn ? [catalogIdentityKey({ connectorId: node.data.connectorId, assetRef: urn, urn })] : []
     })
-    const pendingCatalogRiskUrn = checkpointProgress?.state === 'complete'
-      ? rankCatalogRiskCandidateUrns(checkpointProgress, representedCatalogUrns)[0]
+    const pendingCatalogRisk = checkpointProgress?.state === 'complete'
+      ? rankCatalogRiskCandidates(checkpointProgress, representedCatalogIdentities)[0]
       : undefined
-    const hasPendingCatalogWork = catalogHasPendingAutonomousWork(checkpointProgress, representedCatalogUrns)
+    const hasPendingCatalogWork = catalogHasPendingAutonomousWork(checkpointProgress, representedCatalogIdentities)
     if (!monitored && executionCheckpointCurrent && (hasArmedMonitor || monitorBootstrapAttempted.current) && !hasPendingCatalogWork) {
       const coverageGaps = checkpointProgress?.dataAuditCoverageGaps ?? 0
       setActivity(coverageGaps > 0
@@ -273,7 +273,14 @@ export function useAutonomousPlayer(options: AutonomousPlayerOptions) {
       if (routedSources.length > 0) {
         for (const [sourceIndex, source] of routedSources.entries()) {
           const sourceUrn = source.data.assetRef ?? source.data.datahubUrn!
-          const sourceProfile = nodes.find((node) => node.data.kind === 'profile' && node.data.profile?.sourceUrn === sourceUrn)
+          const sourceIdentity = catalogIdentityKey({ connectorId: source.data.connectorId, assetRef: sourceUrn, urn: sourceUrn })
+          const sourceProfile = nodes.find((node) => node.data.kind === 'profile'
+            && node.data.profile
+            && catalogIdentityKey({
+              connectorId: node.data.profile.connectorId,
+              assetRef: node.data.profile.assetRef,
+              urn: node.data.profile.sourceUrn,
+            }) === sourceIdentity)
           const forcedMonitorAudit = monitored?.monitor.urn === sourceUrn ? monitored.audit : undefined
           if (sourceProfile?.data.profile && canReuseDataProfile(sourceProfile.data.profile, Boolean(forcedMonitorAudit))) {
             setActivity(`Agent reusing ${sourceProfile.data.label} · source ${sourceIndex + 1}/${routedSources.length}…`)
@@ -289,7 +296,7 @@ export function useAutonomousPlayer(options: AutonomousPlayerOptions) {
             try {
               const inspection = await inspectDataHubAsset(sourceUrn, Boolean(forcedMonitorAudit), source.data.connectorId)
               if (agentRunId.current !== runId) return
-              profileCandidates.set(sourceUrn, inspection.asset)
+              profileCandidates.set(catalogIdentityKey(inspection.asset), inspection.asset)
               evidenceEntries.push(...inspection.evidence)
               datahubEvidence.push(...inspection.evidence.map((read) => `${source.data.label} · ${read.tool} · ${read.status} · ${read.summary}`))
               const failedReads = inspection.evidence.filter((read) => read.status !== 'ok' || read.stale)
@@ -379,7 +386,7 @@ export function useAutonomousPlayer(options: AutonomousPlayerOptions) {
           })
           recordAudit(audit.transport, successfulReads, audit.reads.length)
           const inspection = await inspectDataHubAsset(sourceUrn, Boolean(forcedMonitorAudit), source.data.connectorId).catch(() => undefined)
-          if (inspection?.asset) profileCandidates.set(sourceUrn, inspection.asset)
+          if (inspection?.asset) profileCandidates.set(catalogIdentityKey(inspection.asset), inspection.asset)
         }
         if (!monitored && catalogExplorer && catalogExplorer.data.exploration?.state !== 'complete' && connectionMode === 'connected') {
           const batchLabel = explorerPolicy?.scope === 'dataset' ? 'the focused dataset' : `the next ${explorerWorkerPolicy?.batchSize ?? explorerPolicy?.batchSize ?? 8} datasets`
@@ -400,19 +407,19 @@ export function useAutonomousPlayer(options: AutonomousPlayerOptions) {
           continueCatalogWithoutModel = !shouldCallAgentForCatalog(previousProgress, explored.progress)
         }
         if (!monitored && catalogExplorer?.data.exploration?.state === 'complete' && connectionMode === 'connected') {
-          const representedUrns = nodes.flatMap((node) => {
+          const representedIdentities = nodes.flatMap((node) => {
             if (node.data.kind !== 'source') return []
             const urn = node.data.assetRef ?? node.data.datahubUrn
-            return urn ? [urn] : []
+            return urn ? [catalogIdentityKey({ connectorId: node.data.connectorId, assetRef: urn, urn })] : []
           })
-          const riskCandidateUrn = rankCatalogRiskCandidateUrns(catalogExplorer.data.exploration, representedUrns)[0]
-          if (riskCandidateUrn) {
-            setActivity('Catalog risk candidate found · running one focused GraphQL evidence check…')
-            const inspection = await inspectDataHubAsset(riskCandidateUrn, false, undefined, 'deep')
+          const riskCandidate = rankCatalogRiskCandidates(catalogExplorer.data.exploration, representedIdentities)[0]
+          if (riskCandidate) {
+            setActivity('Catalog risk candidate found · running one focused connector evidence check…')
+            const inspection = await inspectDataHubAsset(riskCandidate.assetRef ?? riskCandidate.urn, false, riskCandidate.connectorId, 'deep')
             if (agentRunId.current !== runId) return
             blankCandidate = inspection.asset
             catalogProgress = catalogExplorer.data.exploration
-            profileCandidates.set(inspection.asset.urn, inspection.asset)
+            profileCandidates.set(catalogIdentityKey(inspection.asset), inspection.asset)
             evidenceEntries.push(...inspection.evidence)
             datahubEvidence.unshift(
               `Autonomous catalog risk candidate selected from the terminal checkpoint: ${inspection.asset.name} (${inspection.asset.urn}).`,
@@ -437,12 +444,12 @@ export function useAutonomousPlayer(options: AutonomousPlayerOptions) {
               const urn = node.data.assetRef ?? node.data.datahubUrn
               return urn ? [{ urn, connectorId: node.data.connectorId }] : []
             }))
-            const candidateUrn = selectCatalogCandidateUrn(completedCheckpoint, preferredSources.map((source) => source.urn))
-            if (!candidates.length && !candidateUrn && explorerPolicy?.scope !== 'dataset') candidates = await searchDataHubAssets('*')
-            const summary = candidates.find((candidate) => candidate.urn === candidateUrn || candidate.assetRef === candidateUrn)
-            if (candidateUrn) {
-              const connectorId = preferredSources.find((source) => source.urn === candidateUrn)?.connectorId ?? summary?.connectorId
-              const inspection = await inspectDataHubAsset(candidateUrn, false, connectorId, 'deep')
+            const preferredIdentities = preferredSources.map((source) => catalogIdentityKey({ connectorId: source.connectorId, assetRef: source.urn, urn: source.urn }))
+            const candidateCheckpoint = selectCatalogCandidate(completedCheckpoint, preferredIdentities)
+            if (!candidates.length && !candidateCheckpoint && explorerPolicy?.scope !== 'dataset') candidates = await searchDataHubAssets('*')
+            const summary = candidateCheckpoint ? candidates.find((candidate) => catalogIdentityKey(candidate) === catalogIdentityKey(candidateCheckpoint)) : undefined
+            if (candidateCheckpoint) {
+              const inspection = await inspectDataHubAsset(candidateCheckpoint.assetRef ?? candidateCheckpoint.urn, false, candidateCheckpoint.connectorId ?? summary?.connectorId, 'deep')
               if (agentRunId.current !== runId) return
               blankCandidate = inspection.asset
               evidenceEntries = inspection.evidence
@@ -511,29 +518,29 @@ export function useAutonomousPlayer(options: AutonomousPlayerOptions) {
           }
         }
         if (blankCandidate) {
-          profileCandidates.set(blankCandidate.urn, blankCandidate)
+          profileCandidates.set(catalogIdentityKey(blankCandidate), blankCandidate)
           datahubEvidence.unshift(
             `${catalogProgress?.state === 'complete' ? 'Starting dataset candidate selected after complete catalog exploration' : 'Fast-lane starting dataset selected from the first usable catalog checkpoint'}: ${blankCandidate.name} (${blankCandidate.urn}). Add it as the Data Source card in the proposed graph. ${catalogProgress?.state === 'complete' ? '' : 'Keep Catalog Explorer resumable; the remaining datasets continue in background without model calls.'}`,
             `Selected schema: ${blankCandidate.fields.map((field) => `${field.name}:${field.type}${field.tags?.length ? `[${field.tags.join(',')}]` : ''}`).join(', ') || 'unavailable'}`,
             `Selected governance: owners=${blankCandidate.owners.join(', ') || 'missing'}; tags=${blankCandidate.tags.join(', ') || 'none'}; quality=${blankCandidate.qualityStatus}; upstream=${blankCandidate.upstream.length}; downstream=${blankCandidate.downstream.length}`,
           )
-          if (incidentSummaries.some((incident) => incident.incidentKey === 'source-discovery:datahub' && incident.status !== 'resolved')) {
+          if (incidentSummaries.some((incident) => incident.incidentKey === 'source-discovery:catalog' && incident.status !== 'resolved')) {
             await logIncident({
-              incidentKey: 'source-discovery:datahub',
+              incidentKey: 'source-discovery:catalog',
               transition: 'recovered',
               severity: 'info',
-              title: 'DataHub source discovery recovered',
+              title: 'Catalog source discovery recovered',
               detail: `Catalog Explorer audited ${catalogProgress?.inspected ?? 0} datasets and selected ${blankCandidate.name}; autonomous source selection can continue.`,
-              sourceSystem: 'DataHub',
-              sourceRef: blankCandidate.urn,
-              fingerprint: `source-discovery-recovered:${blankCandidate.urn}`,
+              sourceSystem: blankCandidate.sourceSystem ?? 'Catalog',
+              sourceRef: blankCandidate.assetRef ?? blankCandidate.urn,
+              fingerprint: `source-discovery-recovered:${catalogIdentityKey(blankCandidate)}`,
               cardId: unboundSource?.id,
               branchId: unboundSource?.id,
             })
           }
         } else if (!continueCatalogWithoutModel) {
           if (catalogExplorer && discoveryError) catalogProgress = catalog.markDiscoveryFailed(catalogExplorer, discoveryQuery, () => agentRunId.current === runId)
-          const connectivity = discoveryError ? classifyConnectivityFailure(discoveryError, 'DataHub source discovery') : undefined
+          const connectivity = discoveryError ? classifyConnectivityFailure(discoveryError, 'Catalog source discovery') : undefined
           const failed = discoveryError !== undefined
           const discoveryFailure = failed ? errorMessage(discoveryError, 'Unknown search error') : ''
           if (failed) recordDiagnostic({
@@ -543,38 +550,38 @@ export function useAutonomousPlayer(options: AutonomousPlayerOptions) {
             detail: { message: discoveryFailure },
           })
           await logIncident({
-            incidentKey: 'source-discovery:datahub',
+            incidentKey: 'source-discovery:catalog',
             transition: 'opened',
             severity: connectivity ? 'critical' : 'warning',
-            title: connectivity?.title ?? (failed ? 'DataHub source discovery failed' : 'No governed DataHub source matched'),
+            title: connectivity?.title ?? (failed ? 'Catalog source discovery failed' : 'No governed catalog source matched'),
             detail: connectivity ? `${connectivity.detail} Technical detail: ${discoveryFailure}.` : (failed
-              ? `The DataHub catalog search failed: ${discoveryFailure}. This is a collection-reliability incident; dataset health was not evaluated.`
-              : 'The DataHub catalog search completed, but no governed starting dataset matched the autonomous objective. The player will retry without calling the model again.'),
-            sourceSystem: connectivity?.sourceSystem ?? 'DataHub',
-            sourceRef: 'mcp-search',
+              ? `The catalog search failed: ${discoveryFailure}. This is a collection-reliability incident; asset health was not evaluated.`
+              : 'The catalog search completed, but no governed starting asset matched the autonomous objective. The player will retry without calling the model again.'),
+            sourceSystem: connectivity?.sourceSystem ?? 'Catalog',
+            sourceRef: 'catalog-search',
             fingerprint: connectivity?.fingerprint ?? (failed ? `source-discovery-error:${errorMessage(discoveryError)}` : 'no-governed-source-candidate'),
             cardId: unboundSource?.id,
             branchId: unboundSource?.id,
           })
           if (unboundSource && catalogProgress?.pauseReason !== 'retry_exhausted' && expectedPlayerSessionId !== undefined && playerSessionId.current === expectedPlayerSessionId) {
-            queueAutonomousStep('Retry governed DataHub source discovery for the existing unbound Data Source. Do not propose another placeholder or duplicate graph.', expectedPlayerSessionId, 30_000)
-            setActivity(`Incident reported · ${connectivity?.title ?? (failed ? 'DataHub source discovery failed' : 'no governed DataHub source matched')} · autonomous retry in 30 seconds`)
+            queueAutonomousStep('Retry governed catalog source discovery for the existing unbound Data Source. Do not propose another placeholder or duplicate graph.', expectedPlayerSessionId, 30_000)
+            setActivity(`Incident reported · ${connectivity?.title ?? (failed ? 'Catalog source discovery failed' : 'no governed catalog source matched')} · autonomous retry in 30 seconds`)
           } else if (unboundSource && catalogProgress?.pauseReason === 'retry_exhausted') {
             setActivity(`Catalog Explorer paused at ${catalogProgress.inspected}/${catalogProgress.total || '?'} · retry limit reached · reconnect the catalog to resume`)
           }
           if (unboundSource) return
-          datahubEvidence = ['No governed DataHub source matched the objective. The graph has no Data Source yet. Add one explicit unbound Data Source and one Human Review binding checkpoint without inventing schema, ownership or lineage.']
+          datahubEvidence = ['No governed catalog source matched the objective. The graph has no Data Source yet. Add one explicit unbound Data Source and one Human Review binding checkpoint without inventing schema, ownership or lineage.']
         }
       } else if (unboundSource) {
         await logIncident({
-          incidentKey: 'source-discovery:datahub',
+          incidentKey: 'source-discovery:catalog',
           transition: 'opened',
           severity: 'critical',
-          title: 'DataHub connection required',
-          detail: 'The autonomous graph contains an unbound Data Source, but DataHub MCP is not connected. Monitoring and impact analysis cannot begin.',
-          sourceSystem: 'DataHub',
-          sourceRef: 'mcp',
-          fingerprint: 'datahub-disconnected',
+          title: 'Catalog connection required',
+          detail: 'The autonomous graph contains an unbound Data Source, but no verified catalog connector is available. Monitoring and impact analysis cannot begin.',
+          sourceSystem: 'Catalog',
+          sourceRef: 'catalog',
+          fingerprint: 'catalog-disconnected',
           cardId: unboundSource.id,
           branchId: unboundSource.id,
         })
@@ -687,10 +694,10 @@ export function useAutonomousPlayer(options: AutonomousPlayerOptions) {
           nextProposal.addedNodes = []
           nextProposal.updatedNodes = [{
             nodeId: unboundSource.id,
-            reason: 'Bind the existing placeholder to the governed DataHub asset discovered from fresh MCP evidence.',
+            reason: 'Bind the existing placeholder to the governed catalog asset discovered from fresh connector evidence.',
             patch: {
               label: blankCandidate.name,
-              description: blankCandidate.description || 'Governed DataHub source selected by the autonomous player.',
+              description: blankCandidate.description || 'Governed catalog source selected by the autonomous player.',
               owner: blankCandidate.owners.join(', ') || 'Unassigned',
               schema: blankCandidate.fields,
               connectorId: blankCandidate.connectorId ?? 'datahub',
@@ -710,34 +717,39 @@ export function useAutonomousPlayer(options: AutonomousPlayerOptions) {
           nextProposal.addedEdges = nextProposal.addedEdges.filter((edge) => edge.source !== unboundSource.id && edge.target !== unboundSource.id)
           nextProposal.removedEdgeIds = []
           nextProposal.title = `Bind ${blankCandidate.name}`
-          nextProposal.summary = `Bind the existing Data Source to ${blankCandidate.urn} from fresh DataHub MCP evidence, then reread the graph before adding the next incident-handling card.`
+          nextProposal.summary = `Bind the existing Data Source to ${blankCandidate.urn} from fresh ${blankCandidate.sourceSystem ?? 'catalog'} evidence, then reread the graph before adding the next incident-handling card.`
           nextProposal.requiresHumanReview = false
-          nextProposal.incidentKey = 'source-discovery:datahub'
+          nextProposal.incidentKey = 'source-discovery:catalog'
           await logIncident({
-            incidentKey: 'source-discovery:datahub',
+            incidentKey: 'source-discovery:catalog',
             transition: 'recovered',
             severity: 'info',
             title: `Governed source discovered · ${blankCandidate.name}`,
-            detail: `Fresh DataHub evidence resolved the unbound source to ${blankCandidate.urn}.`,
-            sourceSystem: 'DataHub',
-            sourceRef: blankCandidate.urn,
-            fingerprint: blankCandidate.urn,
+            detail: `Fresh ${blankCandidate.sourceSystem ?? 'catalog'} evidence resolved the unbound source to ${blankCandidate.urn}.`,
+            sourceSystem: blankCandidate.sourceSystem ?? 'Catalog',
+            sourceRef: blankCandidate.assetRef ?? blankCandidate.urn,
+            fingerprint: catalogIdentityKey(blankCandidate),
             cardId: unboundSource.id,
             branchId: unboundSource.id,
           })
         }
       }
-      for (const [sourceUrn, profileCandidate] of profileCandidates) {
-        const sourceNode = nodes.find((node) => node.data.kind === 'source' && (node.data.assetRef ?? node.data.datahubUrn) === sourceUrn)
-          ?? nextProposal.addedNodes.find((node) => node.data.kind === 'source' && (node.data.assetRef ?? node.data.datahubUrn) === sourceUrn)
+      for (const profileCandidate of profileCandidates.values()) {
+        const matchesProfileCandidate = (node: PipelineNode) => {
+          if (node.data.kind !== 'source') return false
+          const assetRef = node.data.assetRef ?? node.data.datahubUrn
+          return Boolean(assetRef && catalogIdentityKey({ connectorId: node.data.connectorId, assetRef, urn: assetRef }) === catalogIdentityKey(profileCandidate))
+        }
+        const sourceNode = nodes.find(matchesProfileCandidate)
+          ?? nextProposal.addedNodes.find(matchesProfileCandidate)
         addDataProfileToProposal(nextProposal, nodes, profileCandidate, sourceNode)
       }
       const initialMaterialChangeCount = nextProposal.addedNodes.length
         + nextProposal.updatedNodes.length
         + nextProposal.addedEdges.length
         + nextProposal.removedEdgeIds.length
-      const riskAssets = new Map(riskAssetsFromGraph([...nodes, ...nextProposal.addedNodes]).map((asset) => [asset.urn, asset]))
-      for (const asset of profileCandidates.values()) riskAssets.set(asset.urn, asset)
+      const riskAssets = new Map(riskAssetsFromGraph([...nodes, ...nextProposal.addedNodes]).map((asset) => [catalogIdentityKey(asset), asset]))
+      for (const asset of profileCandidates.values()) riskAssets.set(catalogIdentityKey(asset), asset)
       const hostRisk = evaluateHostRisk([...riskAssets.values()], evidenceEntries, autonomyPolicy)
       const retryExhausted = monitored?.reason === 'retry-exhausted'
       const frequentReview = policyForcesProposalReview(autonomyPolicy, initialMaterialChangeCount)
@@ -811,13 +823,14 @@ export function useAutonomousPlayer(options: AutonomousPlayerOptions) {
           queueAutonomousStep('The previous proposal is already committed. Do not repeat it. Propose the next coherent missing iteration toward continuous incident handling; if the governed path is otherwise complete, add the required Live Monitor and feedback boundary.', expectedPlayerSessionId)
         } else if (
           autonomousSessionActive
-          && pendingCatalogRiskUrn
-          && !catalogAdvanceAttempted.current.has(pendingCatalogRiskUrn)
+          && pendingCatalogRisk
+          && !catalogAdvanceAttempted.current.has(catalogIdentityKey(pendingCatalogRisk))
         ) {
-          catalogAdvanceAttempted.current.add(pendingCatalogRiskUrn)
+          const pendingCatalogIdentity = catalogIdentityKey(pendingCatalogRisk)
+          catalogAdvanceAttempted.current.add(pendingCatalogIdentity)
           setActivity('Catalog risk branch was not materialized · one focused correction scheduled…')
           queueAutonomousStep(
-            `The previous proposal duplicated the current graph while the terminal catalog still contains an unrepresented risk candidate. Do not repeat or rewrite the existing branch. Build exactly one new evidence-backed branch for ${pendingCatalogRiskUrn}, connect its Source, Data Profile, Impact Analysis, Risk Assessment and required review/protection/output path, then leave the other catalog datasets for later iterations.`,
+            `The previous proposal duplicated the current graph while the terminal catalog still contains an unrepresented risk candidate. Do not repeat or rewrite the existing branch. Build exactly one new evidence-backed branch for ${pendingCatalogRisk.name} (${pendingCatalogIdentity}), connect its Source, Data Profile, Impact Analysis, Risk Assessment and required review/protection/output path, then leave the other catalog assets for later iterations.`,
             expectedPlayerSessionId,
             1_200,
           )

@@ -95,4 +95,84 @@ describe('versioned pipeline JSON exchange', () => {
       failed: 5,
     })
   })
+
+  it('preserves custom catalog identity and structured SAM evidence across JSON import', () => {
+    const customAsset: DataHubAssetSummary = {
+      connectorId: 'catalog-a',
+      sourceSystem: 'Catalog A',
+      assetRef: 'software/licenses',
+      urn: 'software/licenses',
+      name: 'Software licenses',
+      platform: 'http-api',
+      environment: 'PROD',
+      description: 'Aggregate software license evidence',
+      owners: ['ITAM'],
+      tags: ['SAM'],
+      qualityStatus: 'healthy',
+      fields: [{ name: 'purchased_seats', type: 'number' }],
+      upstream: [],
+      downstream: [],
+      freshness: { capturedAt: '2026-07-24T10:00:00.000Z', expiresAt: '2099-07-24T11:00:00.000Z', stale: false },
+    }
+    const source = newCard('source', 0)
+    source.data.connectorId = customAsset.connectorId
+    source.data.sourceSystem = customAsset.sourceSystem
+    source.data.assetRef = customAsset.assetRef
+    source.data.profile = createDataProfileSnapshot(customAsset)
+    source.data.samAsset = {
+      id: 'product-a',
+      product: 'Product A',
+      vendor: 'Vendor A',
+      owner: 'ITAM',
+      purchasedSeats: 20,
+      assignedSeats: 18,
+      activeSeats: 12,
+      annualUnitCost: 100,
+      complianceStatus: 'compliant',
+      approved: true,
+    }
+    const explorer = newCard('explorer', 1)
+    explorer.data.exploration = {
+      query: 'license',
+      total: 1,
+      discovered: 1,
+      inspected: 1,
+      failed: 0,
+      incidents: 0,
+      governanceGaps: 0,
+      concurrency: 1,
+      state: 'complete',
+      checkpointAt: '2026-07-24T10:00:00.000Z',
+      datasets: [{
+        connectorId: customAsset.connectorId,
+        sourceSystem: customAsset.sourceSystem,
+        assetRef: customAsset.assetRef,
+        urn: customAsset.urn,
+        name: customAsset.name,
+        status: 'healthy',
+        fieldCount: 1,
+        ownerCount: 1,
+        upstreamCount: 0,
+        downstreamCount: 0,
+        issues: [],
+        fingerprint: 'catalog-a-license',
+        capturedAt: customAsset.freshness.capturedAt,
+        expiresAt: customAsset.freshness.expiresAt,
+      }],
+    }
+
+    const imported = parsePipelineExport(JSON.stringify(createPipelineExport('Custom catalog', [source, explorer], [], [])))
+
+    expect(imported.graph.nodes[0]?.data).toMatchObject({
+      connectorId: 'catalog-a',
+      assetRef: 'software/licenses',
+      profile: { connectorId: 'catalog-a', assetRef: 'software/licenses', sourceUrn: 'software/licenses' },
+      samAsset: { product: 'Product A', purchasedSeats: 20, activeSeats: 12 },
+    })
+    expect(imported.graph.nodes[1]?.data.exploration?.datasets[0]).toMatchObject({
+      connectorId: 'catalog-a',
+      assetRef: 'software/licenses',
+      urn: 'software/licenses',
+    })
+  })
 })
